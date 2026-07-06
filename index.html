@@ -5,19 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Osu! Map Mixer</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- JSZip Library for client-side, in-memory decompression -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
+    <!-- Hidden File Input for OSZ selection -->
+    <input type="file" id="oszFileInput" accept=".osz" style="display: none;">
+
     <!-- Welcome Modal -->
     <div class="welcome-modal" id="welcomeModal">
         <div class="modal-content">
             <h2>Welcome to Osu! Map Mixer</h2>
             <div class="drop-zone" id="dropZone">
-                <p>Drag & Drop Map Folder Here</p>
-                <span class="drop-subtext">or click to choose folder</span>
+                <p>Drag & Drop .osz or Map Folder Here</p>
+                <span class="drop-subtext">or click to choose folder/file</span>
             </div>
             <div class="modal-buttons">
-                <button class="btn btn-secondary" id="importFolderBtnModal">Import Map Folder</button>
-                <button class="btn btn-success" id="newCanvasBtn">New Empty Canvas</button>
+                <button class="btn btn-success" id="importOszBtnModal">Import .osz Map</button>
+                <button class="btn btn-secondary" id="importFolderBtnModal">Import Folder</button>
+                <button class="btn btn-neutral" id="newCanvasBtn">New Canvas</button>
             </div>
         </div>
     </div>
@@ -26,6 +32,7 @@
     <div class="menu-bar">
         <div class="menu-brand">osu! Map Mixer</div>
         <div class="menu-group">
+            <div class="menu-item" id="importOszBtnMenu">Import .osz</div>
             <div class="menu-item" id="importFolderBtnMenu">Import Folder</div>
             <div class="menu-item" id="exportBtnMenu">Export</div>
         </div>

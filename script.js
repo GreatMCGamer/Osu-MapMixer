@@ -118,7 +118,6 @@ async function handleDirectory(dirHandle) {
 
     try {
         for await (const entry of dirHandle.values()) {
-            // Only examine file entries at the root of the picked directory (no recursion)
             if (entry.kind === 'file') {
                 const name = entry.name.toLowerCase();
                 if (name.endsWith('.osu')) {
@@ -137,11 +136,55 @@ async function handleDirectory(dirHandle) {
 }
 
 /**
+ * JSZip: Extract .osz archive entirely in-memory
+ * @param {File} file 
+ */
+async function handleOszFile(file) {
+    if (!window.JSZip) {
+        console.error("JSZip library has not loaded yet.");
+        return;
+    }
+
+    console.log(`%c[OSZ File Processing]: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, "color: #ff66aa; font-weight: bold;");
+
+    try {
+        const zip = await JSZip.loadAsync(file);
+        console.log(`%cDecompressing .osz... Found ${Object.keys(zip.files).length} total files inside.`, "color: #00bcd4; font-weight: bold;");
+
+        let osuCount = 0;
+        let mp3Count = 0;
+
+        for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) continue;
+
+            const nameLower = filename.toLowerCase();
+            if (nameLower.endsWith('.osu')) {
+                // Extract .osu content as plain text
+                const textContent = await zipEntry.async("string");
+                console.log(`%c[OSU Map Extracted]: ${filename}`, "color: #28a745; font-weight: bold;");
+                // Log a clean sample of the map config headers
+                console.log(textContent.slice(0, 450) + "\n... [truncated preview]");
+                osuCount++;
+            } else if (nameLower.endsWith('.mp3')) {
+                // Extract .mp3 audio as an ArrayBuffer
+                const bufferContent = await zipEntry.async("arraybuffer");
+                console.log(`%c[Audio Extracted]: ${filename}`, "color: #ff9800; font-weight: bold;");
+                console.log(`  Size: ${(bufferContent.byteLength / 1024 / 1024).toFixed(2)} MB, loaded as ArrayBuffer.`);
+                mp3Count++;
+            }
+        }
+        console.log(`%c[Decompression Completed] Extracted ${osuCount} .osu files and ${mp3Count} .mp3 audio files.`, "color: #28a745; font-weight: bold;");
+    } catch (err) {
+        console.error("Failed to parse and decompress the .osz file using JSZip:", err);
+    }
+}
+
+/**
  * Trigger Native Directory Picker
  */
 async function triggerDirectoryPicker() {
     if (!window.showDirectoryPicker) {
-        alert("The Directory Picker API is not supported in this browser. Please use Google Chrome, Microsoft Edge, or another compatible browser, or use Drag & Drop.");
+        console.warn("showDirectoryPicker is unsupported. Dropping back to custom triggers.");
         return;
     }
     try {
@@ -157,7 +200,7 @@ async function triggerDirectoryPicker() {
 }
 
 /**
- * Process drag & drop files/folders securely using Webkit Entries (flat evaluation)
+ * Process drag & drop items/folders securely
  */
 async function processDraggedEntries(items) {
     let osuCount = 0;
@@ -172,7 +215,6 @@ async function processDraggedEntries(items) {
             if (entry) {
                 if (entry.isDirectory) {
                     console.log(`[Directory Entry]: ${entry.name}`);
-                    // We parse files only inside this top-level directory folder (no subfolder recursion)
                     const reader = entry.createReader();
                     await new Promise((resolve) => {
                         reader.readEntries(async (entries) => {
@@ -192,23 +234,28 @@ async function processDraggedEntries(items) {
                         });
                     });
                 } else if (entry.isFile) {
-                    // Direct files dropped
-                    const name = entry.name.toLowerCase();
-                    if (name.endsWith('.osu')) {
-                        console.log(`  [osu!] map: ${entry.name}`);
-                        osuCount++;
-                    } else if (name.endsWith('.mp3')) {
-                        console.log(`  [Audio] track: ${entry.name}`);
-                        mp3Count++;
+                    const file = item.getAsFile();
+                    if (file) {
+                        const name = file.name.toLowerCase();
+                        if (name.endsWith('.osz')) {
+                            await handleOszFile(file);
+                        } else if (name.endsWith('.osu')) {
+                            console.log(`  [osu!] map: ${file.name}`);
+                            osuCount++;
+                        } else if (name.endsWith('.mp3')) {
+                            console.log(`  [Audio] track: ${file.name}`);
+                            mp3Count++;
+                        }
                     }
                 }
             }
         } else {
-            // Fallback for standard files
             const file = item.getAsFile();
             if (file) {
                 const name = file.name.toLowerCase();
-                if (name.endsWith('.osu')) {
+                if (name.endsWith('.osz')) {
+                    await handleOszFile(file);
+                } else if (name.endsWith('.osu')) {
                     console.log(`  [osu!] map: ${file.name}`);
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
@@ -218,7 +265,9 @@ async function processDraggedEntries(items) {
             }
         }
     }
-    console.log(`%cScan complete: Evaluated ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+    if (osuCount > 0 || mp3Count > 0) {
+        console.log(`%cScan complete: Evaluated ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+    }
 }
 
 // --- Canvas & Window Helpers ---
@@ -283,24 +332,44 @@ function drawGrid(ctx, width, height) {
 // --- Listeners Setup ---
 
 function setupMenuListeners() {
-    const importBtn = document.getElementById('importFolderBtnMenu');
+    const importOszBtnMenu = document.getElementById('importOszBtnMenu');
+    const importFolderBtnMenu = document.getElementById('importFolderBtnMenu');
     const exportBtn = document.getElementById('exportBtnMenu');
+    const fileInput = document.getElementById('oszFileInput');
     
-    if (importBtn) {
-        importBtn.addEventListener('click', triggerDirectoryPicker);
+    if (importOszBtnMenu && fileInput) {
+        importOszBtnMenu.addEventListener('click', () => fileInput.click());
+    }
+    if (importFolderBtnMenu) {
+        importFolderBtnMenu.addEventListener('click', triggerDirectoryPicker);
     }
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             console.log("Export triggered.");
         });
     }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            if (e.target.files.length > 0) {
+                const welcomeModal = document.getElementById('welcomeModal');
+                if (welcomeModal) welcomeModal.style.display = 'none';
+                await handleOszFile(e.target.files[0]);
+            }
+        });
+    }
 }
 
 function setupWelcomeModalListeners() {
+    const importOszBtnModal = document.getElementById('importOszBtnModal');
     const importFolderBtnModal = document.getElementById('importFolderBtnModal');
     const newCanvasBtn = document.getElementById('newCanvasBtn');
     const welcomeModal = document.getElementById('welcomeModal');
+    const fileInput = document.getElementById('oszFileInput');
     
+    if (importOszBtnModal && fileInput) {
+        importOszBtnModal.addEventListener('click', () => fileInput.click());
+    }
     if (importFolderBtnModal) {
         importFolderBtnModal.addEventListener('click', triggerDirectoryPicker);
     }
@@ -329,8 +398,6 @@ function setupDragAndDrop() {
             dropZone.classList.remove('drag-over');
         }, false);
     });
-
-    dropZone.addEventListener('click', triggerDirectoryPicker);
 
     dropZone.addEventListener('drop', async (e) => {
         const items = e.dataTransfer.items;
