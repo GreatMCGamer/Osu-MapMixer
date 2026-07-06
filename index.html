@@ -12,6 +12,17 @@
     <!-- Hidden File Input for OSZ selection -->
     <input type="file" id="oszFileInput" accept=".osz" style="display: none;">
 
+    <!-- Global Full-Screen Loader Overlay -->
+    <div class="loader-overlay" id="loaderOverlay">
+        <div class="loader-box">
+            <div class="spinner"></div>
+            <div class="loader-text" id="loaderText">Fetching Beatmap from osu! servers...</div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <!-- Welcome Modal -->
     <div class="welcome-modal" id="welcomeModal">
         <div class="modal-content">
@@ -20,6 +31,13 @@
                 <p>Drag & Drop .osz or Map Folder Here</p>
                 <span class="drop-subtext">or click to choose folder/file</span>
             </div>
+            
+            <!-- Paste URL Input Box -->
+            <div class="url-input-container">
+                <input type="text" id="modalUrlInput" placeholder="Paste osu! beatmap URL (e.g., https://osu.ppy.sh/b/...)">
+                <button class="btn btn-secondary" id="loadUrlBtn">Load Link</button>
+            </div>
+
             <div class="modal-buttons">
                 <button class="btn btn-success" id="importOszBtnModal">Import .osz Map</button>
                 <button class="btn btn-secondary" id="importFolderBtnModal">Import Folder</button>
@@ -31,6 +49,9 @@
     <!-- Top menu bar -->
     <div class="menu-bar">
         <div class="menu-brand">osu! Map Mixer</div>
+        <div class="menu-search-wrapper">
+            <input type="text" id="menuUrlInput" placeholder="Paste beatmap URL here...">
+        </div>
         <div class="menu-group">
             <div class="menu-item" id="importOszBtnMenu">Import .osz</div>
             <div class="menu-item" id="importFolderBtnMenu">Import Folder</div>

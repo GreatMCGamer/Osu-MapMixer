@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setupDragAndDrop();
     setupPlaybackControls();
     setupTrackInteractions(masterTrack);
+    setupClipboardPasteListener();
+    setupURLInputListeners();
 
     // Animation Loop
     requestAnimationFrame(animationLoop);
@@ -129,9 +131,10 @@ async function handleDirectory(dirHandle) {
                 }
             }
         }
-        console.log(`%cScan complete: Found ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+        showToast(`Loaded Directory: ${dirHandle.name} with ${osuCount} maps.`, "success");
     } catch (err) {
         console.error("Error reading directory contents:", err);
+        showToast("Error reading directory contents", "error");
     }
 }
 
@@ -142,15 +145,14 @@ async function handleDirectory(dirHandle) {
 async function handleOszFile(file) {
     if (!window.JSZip) {
         console.error("JSZip library has not loaded yet.");
+        showToast("Decompressor library not loaded", "error");
         return;
     }
 
-    console.log(`%c[OSZ File Processing]: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, "color: #ff66aa; font-weight: bold;");
+    showLoader("Extracting .osz package...");
 
     try {
         const zip = await JSZip.loadAsync(file);
-        console.log(`%cDecompressing .osz... Found ${Object.keys(zip.files).length} total files inside.`, "color: #00bcd4; font-weight: bold;");
-
         let osuCount = 0;
         let mp3Count = 0;
 
@@ -159,32 +161,204 @@ async function handleOszFile(file) {
 
             const nameLower = filename.toLowerCase();
             if (nameLower.endsWith('.osu')) {
-                // Extract .osu content as plain text
                 const textContent = await zipEntry.async("string");
                 console.log(`%c[OSU Map Extracted]: ${filename}`, "color: #28a745; font-weight: bold;");
-                // Log a clean sample of the map config headers
-                console.log(textContent.slice(0, 450) + "\n... [truncated preview]");
+                console.log(textContent.slice(0, 450) + "\n... [truncated]");
                 osuCount++;
             } else if (nameLower.endsWith('.mp3')) {
-                // Extract .mp3 audio as an ArrayBuffer
                 const bufferContent = await zipEntry.async("arraybuffer");
                 console.log(`%c[Audio Extracted]: ${filename}`, "color: #ff9800; font-weight: bold;");
-                console.log(`  Size: ${(bufferContent.byteLength / 1024 / 1024).toFixed(2)} MB, loaded as ArrayBuffer.`);
                 mp3Count++;
             }
         }
-        console.log(`%c[Decompression Completed] Extracted ${osuCount} .osu files and ${mp3Count} .mp3 audio files.`, "color: #28a745; font-weight: bold;");
+        hideLoader();
+        showToast(`Successfully unpacked ${osuCount} difficulty maps!`, "success");
     } catch (err) {
-        console.error("Failed to parse and decompress the .osz file using JSZip:", err);
+        hideLoader();
+        console.error("Failed to parse .osz:", err);
+        showToast("Failed to unpack .osz", "error");
     }
 }
 
 /**
- * Trigger Native Directory Picker
+ * Parses and fetches a raw .osu beatmap text from a Beatmap ID using the verified AllOrigins JSON Proxy Wrapper
+ * @param {string} beatmapId 
  */
+async function fetchBeatmapById(beatmapId) {
+    showLoader(`Connecting to osu! servers...`);
+    const targetUrl = `https://osu.ppy.sh/osu/${beatmapId}`;
+
+    // Only keep the verified proxy strategy that successfully resolved CORS restrictions and fetched the data
+    const fetchStrategies = [
+        {
+            name: "AllOrigins JSON Proxy Wrapper",
+            url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+            type: "json-wrap",
+            timeout: 15000 // Large timeout since public wrappers can be throttled
+        }
+    ];
+
+    let success = false;
+    let rawText = "";
+
+    for (let i = 0; i < fetchStrategies.length; i++) {
+        const strategy = fetchStrategies[i];
+        console.log(`%c[Ingestion]: Attempting download via: ${strategy.name}...`, "color: #00bcd4;");
+        showLoader(`Downloading via [${i + 1}/${fetchStrategies.length}]...`);
+
+        let timeoutId;
+        try {
+            const controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), strategy.timeout);
+
+            const response = await fetch(strategy.url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            let responseText = "";
+
+            if (strategy.type === "json-wrap") {
+                const json = await response.json();
+                responseText = json.contents || "";
+            } else {
+                responseText = await response.text();
+            }
+
+            if (responseText && responseText.trim().startsWith("osu file format")) {
+                rawText = responseText;
+                success = true;
+                console.log(`%c[Ingestion Success]: Downloaded successfully via: ${strategy.name}!`, "color: #28a745; font-weight: bold;");
+                break;
+            } else {
+                throw new Error("Received response, but raw data is missing a valid 'osu file format' header.");
+            }
+        } catch (err) {
+            if (timeoutId) clearTimeout(timeoutId);
+            const isTimeout = err.name === 'AbortError' || err.message.includes('abort');
+            const errorMsg = isTimeout ? `Request timed out after ${strategy.timeout / 1000}s` : err.message;
+            console.warn(`[Strategy Warning]: ${strategy.name} failed. Error: ${errorMsg}`);
+        }
+    }
+
+    if (success) {
+        console.log(`%c[Beatmap Content Preview]: ID ${beatmapId}`, "color: #ff66aa; font-weight: bold;");
+        console.log(rawText.slice(0, 600) + "\n... [truncated]");
+
+        hideLoader();
+        showToast(`Downloaded Beatmap #${beatmapId}!`, "success");
+
+        const welcomeModal = document.getElementById('welcomeModal');
+        if (welcomeModal) welcomeModal.style.display = 'none';
+    } else {
+        hideLoader();
+        console.error(`Failed to download beatmap ID ${beatmapId} using all public mirrors and CORS gateways.`);
+        showToast(`Could not connect to osu! servers. Please drop the .osz file manually.`, "error");
+    }
+}
+
+/**
+ * Scans string for various osu! url designs and extracts the ID
+ * @param {string} input 
+ */
+function processInputText(input) {
+    const text = input.trim();
+    if (!text) return;
+
+    // Regex combinations:
+    // 1. https://osu.ppy.sh/beatmapsets/1826388#osu/3748430
+    // 2. https://osu.ppy.sh/beatmaps/3748430
+    // 3. https://osu.ppy.sh/b/3748430
+    // 4. Raw beatmap ID: 3748430
+    
+    const bIDRegex = /(?:osu\.ppy\.sh\/b\/|osu\.ppy\.sh\/beatmaps\/|#osu\/)(\d+)/i;
+    const match = text.match(bIDRegex);
+    
+    if (match && match[1]) {
+        fetchBeatmapById(match[1]);
+        return;
+    }
+
+    // Direct numerical input match
+    if (/^\d+$/.test(text)) {
+        fetchBeatmapById(text);
+        return;
+    }
+
+    showToast("Invalid URL or Beatmap ID structure", "error");
+}
+
+// --- Clipboard & Input Handlers ---
+
+function setupClipboardPasteListener() {
+    window.addEventListener('paste', (e) => {
+        // Stop intercepting paste events if user is actively writing inside an input field
+        const activeElem = document.activeElement;
+        if (activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA')) {
+            return; 
+        }
+
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        if (pastedText) {
+            console.log(`%c[Pasted text detected]: ${pastedText}`, "color: #00bcd4;");
+            processInputText(pastedText);
+        }
+    });
+}
+
+function setupURLInputListeners() {
+    const modalUrlInput = document.getElementById('modalUrlInput');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const menuUrlInput = document.getElementById('menuUrlInput');
+
+    if (loadUrlBtn && modalUrlInput) {
+        loadUrlBtn.addEventListener('click', () => {
+            processInputText(modalUrlInput.value);
+            modalUrlInput.value = '';
+        });
+        modalUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                processInputText(modalUrlInput.value);
+                modalUrlInput.value = '';
+            }
+        });
+    }
+
+    if (menuUrlInput) {
+        menuUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                processInputText(menuUrlInput.value);
+                menuUrlInput.value = '';
+            }
+        });
+    }
+}
+
+// --- Loader & UI Toasts ---
+
+function showLoader(message) {
+    const loaderOverlay = document.getElementById('loaderOverlay');
+    const loaderText = document.getElementById('loaderText');
+    if (loaderOverlay && loaderText) {
+        loaderText.textContent = message;
+        loaderOverlay.style.display = 'flex';
+    }
+}
+
+function hideLoader() {
+    const loaderOverlay = document.getElementById('loaderOverlay');
+    if (loaderOverlay) {
+        loaderOverlay.style.display = 'none';
+    }
+}
+
+// --- Trigger Directory Picker ---
+
 async function triggerDirectoryPicker() {
     if (!window.showDirectoryPicker) {
-        console.warn("showDirectoryPicker is unsupported. Dropping back to custom triggers.");
+        showToast("Directory Picker API unsupported on this browser. Try Drag-and-Drop!", "error");
         return;
     }
     try {
@@ -195,13 +369,13 @@ async function triggerDirectoryPicker() {
     } catch (err) {
         if (err.name !== 'AbortError') {
             console.error("Error picking directory:", err);
+            showToast("Failed to read directory", "error");
         }
     }
 }
 
-/**
- * Process drag & drop items/folders securely
- */
+// --- Process Drag & Drop ---
+
 async function processDraggedEntries(items) {
     let osuCount = 0;
     let mp3Count = 0;
@@ -266,7 +440,7 @@ async function processDraggedEntries(items) {
         }
     }
     if (osuCount > 0 || mp3Count > 0) {
-        console.log(`%cScan complete: Evaluated ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+        showToast(`Imported ${osuCount} maps & ${mp3Count} tracks.`, "success");
     }
 }
 
@@ -406,4 +580,23 @@ function setupDragAndDrop() {
             await processDraggedEntries(items);
         }
     }, false);
+}
+
+function showToast(message, type = "info") {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    // Auto delete toast after 4 seconds
+    setTimeout(() => {
+        toast.style.animation = "slideIn 0.3s ease-out reverse forwards";
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 4000);
 }
