@@ -1,61 +1,240 @@
+// State Management
+const state = {
+    isPlaying: false,
+    playheadPosition: 0, // Percentage of the track (0 to 1)
+    lastTimestamp: 0,
+    playbackSpeed: 0.001 // Progress per millisecond
+};
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
-    // Hide the welcome modal initially
     const welcomeModal = document.getElementById('welcomeModal');
     welcomeModal.style.display = 'flex';
     
-    // Get the canvas element
     const canvas = document.getElementById('beatmapCanvas');
-    const ctx = canvas.getContext('2d');
+    const masterTrack = document.getElementById('master-track');
     
-    // Set initial canvas dimensions and draw
+    // Create playhead element if it doesn't exist
+    if (!document.getElementById('playhead')) {
+        const playhead = document.createElement('div');
+        playhead.id = 'playhead';
+        playhead.className = 'playhead';
+        masterTrack.appendChild(playhead);
+    }
+    
     updateCanvasSize();
     drawCanvas();
     
-    // Set up event listeners for menu items
     setupMenuListeners();
-    
-    // Set up event listeners for welcome modal buttons
     setupWelcomeModalListeners();
-    
-    // Set up drag and drop functionality
     setupDragAndDrop();
+    setupPlaybackControls();
+    setupTrackInteractions(masterTrack);
 
-    // Handle window resize
+    // Animation Loop
+    requestAnimationFrame(animationLoop);
+
     window.addEventListener('resize', function() {
         updateCanvasSize();
         drawCanvas();
-        console.log('Window resized - canvas size updated');
     });
 });
 
 /**
- * Pure function to calculate the new canvas size based on window dimensions.
- * Ensures a square canvas that fits within the window with at least 50px padding.
- * @param {number} windowWidth 
- * @param {number} windowHeight 
- * @param {number} topOffset - The height of the menu bar
- * @param {number} bottomOffset - The height of the master track
- * @param {number} padding - The required padding
- * @returns {number} The new dimension for the square canvas
+ * Animation loop for playback
  */
-function calculateSquareSize(windowWidth, windowHeight, topOffset, bottomOffset, padding) {
-    const availableWidth = windowWidth - (padding * 2);
-    const availableHeight = windowHeight - topOffset - bottomOffset - (padding * 2);
+function animationLoop(timestamp) {
+    if (state.isPlaying) {
+        if (!state.lastTimestamp) state.lastTimestamp = timestamp;
+        const deltaTime = timestamp - state.lastTimestamp;
+        
+        state.playheadPosition += deltaTime * state.playbackSpeed;
+        
+        // Loop playback
+        if (state.playheadPosition >= 1) {
+            state.playheadPosition = 0;
+        }
+        
+        state.lastTimestamp = timestamp;
+        drawCanvas();
+        drawPlayhead();
+    }
     
-    // The square size is the minimum of the available width and height
-    return Math.max(0, Math.min(availableWidth, availableHeight));
+    requestAnimationFrame(animationLoop);
 }
 
 /**
- * Updates the canvas element's width and height based on the window size.
+ * Draws the playhead on the master track
  */
+function drawPlayhead() {
+    const masterTrack = document.getElementById('master-track');
+    const playhead = document.getElementById('playhead');
+    if (!playhead || !masterTrack) return;
+
+    const x = state.playheadPosition * masterTrack.offsetWidth;
+    playhead.style.left = `${x}px`;
+}
+
+/**
+ * Sets up spacebar and playback logic
+ */
+function setupPlaybackControls() {
+    window.addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+            e.preventDefault(); // Prevent scrolling
+            state.isPlaying = !state.isPlaying;
+            if (!state.isPlaying) {
+                state.lastTimestamp = 0; // Reset delta calculation
+            }
+        }
+    });
+}
+
+/**
+ * Allows clicking on the master track to seek
+ */
+function setupTrackInteractions(track) {
+    if (!track) return;
+    
+    track.addEventListener('click', function(e) {
+        const rect = track.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        state.playheadPosition = clickX / rect.width;
+        drawPlayhead();
+        drawCanvas();
+    });
+}
+
+// --- Dynamic File Handling & Directory Picker ---
+
+/**
+ * Handles the selected directory handle, lists all top-level .osu and .mp3 files
+ * @param {FileSystemDirectoryHandle} dirHandle 
+ */
+async function handleDirectory(dirHandle) {
+    console.log(`%c[Directory Loaded]: ${dirHandle.name}`, "color: #ff66aa; font-weight: bold;");
+    let osuCount = 0;
+    let mp3Count = 0;
+
+    try {
+        for await (const entry of dirHandle.values()) {
+            // Only examine file entries at the root of the picked directory (no recursion)
+            if (entry.kind === 'file') {
+                const name = entry.name.toLowerCase();
+                if (name.endsWith('.osu')) {
+                    console.log(`  [osu!] map: ${entry.name}`);
+                    osuCount++;
+                } else if (name.endsWith('.mp3')) {
+                    console.log(`  [Audio] track: ${entry.name}`);
+                    mp3Count++;
+                }
+            }
+        }
+        console.log(`%cScan complete: Found ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+    } catch (err) {
+        console.error("Error reading directory contents:", err);
+    }
+}
+
+/**
+ * Trigger Native Directory Picker
+ */
+async function triggerDirectoryPicker() {
+    if (!window.showDirectoryPicker) {
+        alert("The Directory Picker API is not supported in this browser. Please use Google Chrome, Microsoft Edge, or another compatible browser, or use Drag & Drop.");
+        return;
+    }
+    try {
+        const dirHandle = await window.showDirectoryPicker();
+        const welcomeModal = document.getElementById('welcomeModal');
+        if (welcomeModal) welcomeModal.style.display = 'none';
+        await handleDirectory(dirHandle);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error("Error picking directory:", err);
+        }
+    }
+}
+
+/**
+ * Process drag & drop files/folders securely using Webkit Entries (flat evaluation)
+ */
+async function processDraggedEntries(items) {
+    let osuCount = 0;
+    let mp3Count = 0;
+
+    console.log("%c[Drag-and-Drop evaluating items...]", "color: #ff66aa;");
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (typeof item.webkitGetAsEntry === 'function') {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+                if (entry.isDirectory) {
+                    console.log(`[Directory Entry]: ${entry.name}`);
+                    // We parse files only inside this top-level directory folder (no subfolder recursion)
+                    const reader = entry.createReader();
+                    await new Promise((resolve) => {
+                        reader.readEntries(async (entries) => {
+                            for (const subEntry of entries) {
+                                if (subEntry.isFile) {
+                                    const name = subEntry.name.toLowerCase();
+                                    if (name.endsWith('.osu')) {
+                                        console.log(`  [osu!] map: ${subEntry.name}`);
+                                        osuCount++;
+                                    } else if (name.endsWith('.mp3')) {
+                                        console.log(`  [Audio] track: ${subEntry.name}`);
+                                        mp3Count++;
+                                    }
+                                }
+                            }
+                            resolve();
+                        });
+                    });
+                } else if (entry.isFile) {
+                    // Direct files dropped
+                    const name = entry.name.toLowerCase();
+                    if (name.endsWith('.osu')) {
+                        console.log(`  [osu!] map: ${entry.name}`);
+                        osuCount++;
+                    } else if (name.endsWith('.mp3')) {
+                        console.log(`  [Audio] track: ${entry.name}`);
+                        mp3Count++;
+                    }
+                }
+            }
+        } else {
+            // Fallback for standard files
+            const file = item.getAsFile();
+            if (file) {
+                const name = file.name.toLowerCase();
+                if (name.endsWith('.osu')) {
+                    console.log(`  [osu!] map: ${file.name}`);
+                    osuCount++;
+                } else if (name.endsWith('.mp3')) {
+                    console.log(`  [Audio] track: ${file.name}`);
+                    mp3Count++;
+                }
+            }
+        }
+    }
+    console.log(`%cScan complete: Evaluated ${osuCount} .osu files and ${mp3Count} .mp3 files.`, "color: #28a745;");
+}
+
+// --- Canvas & Window Helpers ---
+
+function calculateSquareSize(windowWidth, windowHeight, topOffset, bottomOffset, padding) {
+    const availableWidth = windowWidth - (padding * 2);
+    const availableHeight = windowHeight - topOffset - bottomOffset - (padding * 2);
+    return Math.max(0, Math.min(availableWidth, availableHeight));
+}
+
 function updateCanvasSize() {
-    const canvas = document.getElementById('beatmanCanvas') || document.getElementById('beatmapCanvas');
+    const canvas = document.getElementById('beatmapCanvas');
     if (!canvas) return;
 
     const padding = 50;
-    const menuBarHeight = 40;
+    const menuBarHeight = 48;
     const masterTrackHeight = 100;
 
     const newSize = calculateSquareSize(
@@ -70,39 +249,29 @@ function updateCanvasSize() {
     canvas.height = newSize;
 }
 
-// Function to draw the initial canvas content
 function drawCanvas() {
     const canvas = document.getElementById('beatmapCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw a simple grid pattern to visualize the canvas
     drawGrid(ctx, canvas.width, canvas.height);
     
-    // Draw center point
-    ctx.fillStyle = '#444';
+    ctx.fillStyle = '#ff66aa';
     ctx.beginPath();
-    ctx.arc(canvas.width/2, canvas.height/2, 5, 0, Math.PI * 2);
+    ctx.arc(canvas.width/2, canvas.height/2, 6, 0, Math.PI * 2);
     ctx.fill();
 }
 
-// Function to draw grid on canvas
 function drawGrid(ctx, width, height) {
-    ctx.strokeStyle = '#333';
+    ctx.strokeStyle = '#222';
     ctx.lineWidth = 1;
-    
-    // Draw vertical lines
     for (let x = 0; x <= width; x += 50) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
     }
-    
-    // Draw horizontal lines
     for (let y = 0; y <= height; y += 50) {
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -111,86 +280,63 @@ function drawGrid(ctx, width, height) {
     }
 }
 
-// Set up event listeners for menu items
+// --- Listeners Setup ---
+
 function setupMenuListeners() {
-    const importBtn = document.querySelector('.menu-item:first-child');
-    const exportBtn = document.querySelector('.menu-item:last-child');
+    const importBtn = document.getElementById('importFolderBtnMenu');
+    const exportBtn = document.getElementById('exportBtnMenu');
     
     if (importBtn) {
-        importBtn.addEventListener('click', function() {
-            alert('Import functionality would be implemented here');
-        });
+        importBtn.addEventListener('click', triggerDirectoryPicker);
     }
-    
     if (exportBtn) {
-        exportBtn.addEventListener('click', function() {
-            alert('Export functionality would be implemented here');
+        exportBtn.addEventListener('click', () => {
+            console.log("Export triggered.");
         });
     }
 }
 
-// Set up event listeners for welcome modal buttons
 function setupWelcomeModalListeners() {
-    const loadProjectBtn = document.getElementById('loadProjectBtn');
+    const importFolderBtnModal = document.getElementById('importFolderBtnModal');
     const newCanvasBtn = document.getElementById('newCanvasBtn');
     const welcomeModal = document.getElementById('welcomeModal');
     
-    if (loadProjectBtn) {
-        loadProjectBtn.addEventListener('click', function() {
-            welcomeModal.style.display = 'none';
-            alert('Load project functionality would be implemented here');
-        });
+    if (importFolderBtnModal) {
+        importFolderBtnModal.addEventListener('click', triggerDirectoryPicker);
     }
-    
     if (newCanvasBtn) {
-        newCanvasBtn.addEventListener('click', function() {
+        newCanvasBtn.addEventListener('click', () => {
             welcomeModal.style.display = 'none';
-            alert('New empty canvas functionality would be implemented here');
         });
     }
 }
 
-// Set up drag and drop functionality
 function setupDragAndDrop() {
     const dropZone = document.getElementById('dropZone');
     const welcomeModal = document.getElementById('welcomeModal');
-    
     if (!dropZone) return;
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-    });
-    
     ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, highlight, false);
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        }, false);
     });
-    
+
     ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, unhighlight, false);
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+        }, false);
     });
-    
-    dropZone.addEventListener('drop', handleDrop, false);
-    
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    function highlight() {
-        dropZone.classList.add('drag-over');
-    }
-    
-    function unhighlight() {
-        dropZone.classList.remove('drag-over');
-    }
-    
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        
-        if (files.length > 0) {
+
+    dropZone.addEventListener('click', triggerDirectoryPicker);
+
+    dropZone.addEventListener('drop', async (e) => {
+        const items = e.dataTransfer.items;
+        if (items && items.length > 0) {
             welcomeModal.style.display = 'none';
-            alert(`File dropped: ${files[0].name}\n\nFile processing would be implemented here`);
+            await processDraggedEntries(items);
         }
-    }
+    }, false);
 }

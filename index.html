@@ -12,19 +12,23 @@
         <div class="modal-content">
             <h2>Welcome to Osu! Map Mixer</h2>
             <div class="drop-zone" id="dropZone">
-                <p>Drag & Drop .osz or map folder</p>
+                <p>Drag & Drop Map Folder Here</p>
+                <span class="drop-subtext">or click to choose folder</span>
             </div>
             <div class="modal-buttons">
-                <button class="btn" id="loadProjectBtn">Load project</button>
-                <button class="btn" id="newCanvasBtn">New empty canvas</button>
+                <button class="btn btn-secondary" id="importFolderBtnModal">Import Map Folder</button>
+                <button class="btn btn-success" id="newCanvasBtn">New Empty Canvas</button>
             </div>
         </div>
     </div>
 
     <!-- Top menu bar -->
     <div class="menu-bar">
-        <div class="menu-item">Import</div>
-        <div class="menu-item">Export</div>
+        <div class="menu-brand">osu! Map Mixer</div>
+        <div class="menu-group">
+            <div class="menu-item" id="importFolderBtnMenu">Import Folder</div>
+            <div class="menu-item" id="exportBtnMenu">Export</div>
+        </div>
     </div>
 
     <!-- Main canvas area -->
@@ -33,7 +37,7 @@
     </div>
 
     <!-- Master track -->
-    <div class="master-track">
+    <div class="master-track" id="master-track">
         <!-- Master track content will go here -->
     </div>
 
