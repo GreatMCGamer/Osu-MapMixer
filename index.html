@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Osu! Map Mixer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Welcome Modal -->
+    <div class="welcome-modal" id="welcomeModal">
+        <div class="modal-content">
+            <h2>Welcome to Osu! Map Mixer</h2>
+            <div class="drop-zone" id="dropZone">
+                <p>Drag & Drop .osz or map folder</p>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" id="loadProjectBtn">Load project</button>
+                <button class="btn" id="newCanvasBtn">New empty canvas</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top menu bar -->
+    <div class="menu-bar">
+        <div class="menu-item">Import</div>
+        <div class="menu-item">Export</div>
+    </div>
+
+    <!-- Main canvas area -->
+    <div class="canvas-container">
+        <canvas id="beatmapCanvas"></canvas>
+    </div>
+
+    <!-- Master track -->
+    <div class="master-track">
+        <!-- Master track content will go here -->
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

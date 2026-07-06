@@ -1,0 +1,196 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body background color */
+body {
+    background-color: #808080; /* Gray background */
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* Welcome Modal */
+.welcome-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: #333;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 500px;
+    width: 80%;
+}
+
+.modal-content h2 {
+    color: white;
+    margin-bottom: 20px;
+}
+
+/* Drop zone */
+.drop-zone {
+    border: 3px dashed #666;
+    border-radius: 10px;
+    padding: 40px 20px;
+    margin: 20px 0;
+    background-color: #222;
+    color: #ccc;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.drop-zone:hover {
+    border-color: #fff;
+    background-color: #2a2a2a;
+}
+
+.drop-zone.drag-over {
+    border-color: #007bff;
+    background-color: #1a1a1a;
+}
+
+.drop-zone p {
+    margin: 0;
+    font-size: 16px;
+}
+
+/* Buttons */
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+#loadProjectBtn {
+    background-color: #007bff;
+    color: white;
+}
+
+#loadProjectBtn:hover {
+    background-color: #0056b3;
+}
+
+#newCanvasBtn {
+    background-color: #28a745;
+    color: white;
+}
+
+#newCanvasBtn:hover {
+    background-color: #1e7e34;
+}
+
+/* Menu bar at the top */
+.menu-bar {
+    background-color: #333;
+    color: white;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    height: 40px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+.menu-item {
+    margin-right: 20px;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 3px;
+    transition: background-color 0.3s;
+}
+
+.menu-item:hover {
+    background-color: #555;
+}
+
+/* Canvas container */
+.canvas-container {
+    position: fixed;
+    top: 40px; /* Below menu bar */
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 20px;
+    z-index: 10;
+}
+
+/* Canvas styling */
+#beatmapCanvas {
+    background-color: #000; /* Black square canvas */
+    display: block;
+}
+
+/* Master track at the bottom */
+.master-track {
+    background-color: #222;
+    color: white;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 20px;
+    z-index: 10;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .menu-bar {
+        padding: 8px 15px;
+        height: 35px;
+    }
+    
+    .menu-item {
+        margin-right: 15px;
+        font-size: 14px;
+    }
+    
+    .master-track {
+        height: 80px;
+        padding: 0 15px;
+    }
+    
+    .modal-content {
+        padding: 20px;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
