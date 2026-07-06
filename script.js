@@ -17,7 +17,13 @@ async function initializeApp() {
         await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
     }
 
-    // 2. Setup UI elements safely
+    // 2. Show welcome modal
+    const welcomeModal = document.getElementById('welcomeModal');
+    if (welcomeModal) {
+        welcomeModal.style.display = 'flex';
+    }
+
+    // 3. Setup UI elements safely
     const masterTrack = document.getElementById('master-track');
     
     // Ensure playhead exists
@@ -28,7 +34,7 @@ async function initializeApp() {
         if (masterTrack) masterTrack.appendChild(playhead);
     }
 
-    // 3. Initialize Modules
+    // 4. Initialize Modules
     // We call setup functions AFTER ensuring elements exist in the DOM
     setupMenuListeners();
     setupWelcomeModalListeners();
@@ -38,14 +44,14 @@ async function initializeApp() {
     setupClipboardPasteListener();
     setupURLInputListeners();
 
-    // 4. Initial Render
+    // 5. Initial Render
     updateCanvasSize();
     drawCanvas();
 
-    // 5. Start Loop
+    // 6. Start Loop
     requestAnimationFrame(animationLoop);
 
-    // 6. Handle Responsive Resizing
+    // 7. Handle Responsive Resizing
     window.addEventListener('resize', () => {
         updateCanvasSize();
         drawCanvas();
