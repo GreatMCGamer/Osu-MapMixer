@@ -1,0 +1,208 @@
+/**
+ * Beatmap Extractor & URL Ingestion Pipeline
+ * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
+ */
+
+/**
+ * Decompresses client-side archives in memory using JSZip, parsing configuration strings and extracting sound data
+ * @param {File} file 
+ */
+async function handleOszFile(file) {
+    if (!window.JSZip) {
+        console.error("JSZip library has not loaded yet.");
+        showToast("Decompressor library not loaded", "error");
+        return;
+    }
+
+    showLoader("Extracting .osz package...");
+
+    try {
+        const zip = await JSZip.loadAsync(file);
+        let osuCount = 0;
+        let mp3Count = 0;
+
+        for (const [filename, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) continue;
+
+            const nameLower = filename.toLowerCase();
+            if (nameLower.endsWith('.osu')) {
+                const textContent = await zipEntry.async("string");
+                console.log(`%c[OSU Map Extracted]: ${filename}`, "color: #28a745; font-weight: bold;");
+                console.log(textContent.slice(0, 450) + "\n... [truncated]");
+                osuCount++;
+            } else if (nameLower.endsWith('.mp3')) {
+                const bufferContent = await zipEntry.async("arraybuffer");
+                console.log(`%c[Audio Extracted]: ${filename}`, "color: #ff9800; font-weight: bold;");
+                mp3Count++;
+            }
+        }
+        hideLoader();
+        showToast(`Successfully unpacked ${osuCount} difficulty maps!`, "success");
+    } catch (err) {
+        hideLoader();
+        console.error("Failed to parse .osz:", err);
+        showToast("Failed to unpack .osz", "error");
+    }
+}
+
+/**
+ * Initiates download requests of targeted .osu map configurations using the AllOrigins proxy pipeline
+ * @param {string} beatmapId 
+ */
+async function fetchBeatmapById(beatmapId) {
+    showLoader(`Connecting to osu! servers...`);
+    const targetUrl = `https://osu.ppy.sh/osu/${beatmapId}`;
+
+    // Only keep the verified proxy strategy that successfully resolved CORS restrictions and fetched the data
+    const fetchStrategies = [
+        {
+            name: "AllOrigins JSON Proxy Wrapper",
+            url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+            type: "json-wrap",
+            timeout: 15000 // Large timeout since public wrappers can be throttled
+        }
+    ];
+
+    let success = false;
+    let rawText = "";
+
+    for (let i = 0; i < fetchStrategies.length; i++) {
+        const strategy = fetchStrategies[i];
+        console.log(`%c[Ingestion]: Attempting download via: ${strategy.name}...`, "color: #00bcd4;");
+        showLoader(`Downloading via [${i + 1}/${fetchStrategies.length}]...`);
+
+        let timeoutId;
+        try {
+            const controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), strategy.timeout);
+
+            const response = await fetch(strategy.url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            let responseText = "";
+
+            if (strategy.type === "json-wrap") {
+                const json = await response.json();
+                responseText = json.contents || "";
+            } else {
+                responseText = await response.text();
+            }
+
+            if (responseText && responseText.trim().startsWith("osu file format")) {
+                rawText = responseText;
+                success = true;
+                console.log(`%c[Ingestion Success]: Downloaded successfully via: ${strategy.name}!`, "color: #28a745; font-weight: bold;");
+                break;
+            } else {
+                throw new Error("Received response, but raw data is missing a valid 'osu file format' header.");
+            }
+        } catch (err) {
+            if (timeoutId) clearTimeout(timeoutId);
+            const isTimeout = err.name === 'AbortError' || err.message.includes('abort');
+            const errorMsg = isTimeout ? `Request timed out after ${strategy.timeout / 1000}s` : err.message;
+            console.warn(`[Strategy Warning]: ${strategy.name} failed. Error: ${errorMsg}`);
+        }
+    }
+
+    if (success) {
+        console.log(`%c[Beatmap Content Preview]: ID ${beatmapId}`, "color: #ff66aa; font-weight: bold;");
+        console.log(rawText.slice(0, 600) + "\n... [truncated]");
+
+        hideLoader();
+        showToast(`Downloaded Beatmap #${beatmapId}!`, "success");
+
+        const welcomeModal = document.getElementById('welcomeModal');
+        if (welcomeModal) welcomeModal.style.display = 'none';
+    } else {
+        hideLoader();
+        console.error(`Failed to download beatmap ID ${beatmapId} using all public mirrors and CORS gateways.`);
+        showToast(`Could not connect to osu! servers. Please drop the .osz file manually.`, "error");
+    }
+}
+
+/**
+ * Normalizes text strings, validating if they correspond to direct IDs or extracting sub-ID references from complex website URLs
+ * @param {string} input 
+ */
+function processInputText(input) {
+    const text = input.trim();
+    if (!text) return;
+
+    // Regex combinations:
+    // 1. https://osu.ppy.sh/beatmapsets/1826388#osu/3748430
+    // 2. https://osu.ppy.sh/beatmaps/3748430
+    // 3. https://osu.ppy.sh/b/3748430
+    // 4. Raw beatmap ID: 3748430
+    
+    const bIDRegex = /(?:osu\.ppy\.sh\/b\/|osu\.ppy\.sh\/beatmaps\/|#osu\/)(\d+)/i;
+    const match = text.match(bIDRegex);
+    
+    if (match && match[1]) {
+        fetchBeatmapById(match[1]);
+        return;
+    }
+
+    // Direct numerical input match
+    if (/^\d+$/.test(text)) {
+        fetchBeatmapById(text);
+        return;
+    }
+
+    showToast("Invalid URL or Beatmap ID structure", "error");
+}
+
+/**
+ * Binds global paste commands to extract background clipboard strings whenever active document inputs are not occupied
+ */
+function setupClipboardPasteListener() {
+    window.addEventListener('paste', (e) => {
+        // Stop intercepting paste events if user is actively writing inside an input field
+        const activeElem = document.activeElement;
+        if (activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA')) {
+            return; 
+        }
+
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        if (pastedText) {
+            console.log(`%c[Pasted text detected]: ${pastedText}`, "color: #00bcd4;");
+            processInputText(pastedText);
+        }
+    });
+}
+
+/**
+ * Handles button click actions and ENTER key bindings for input bars inside the UI interface
+ */
+function setupURLInputListeners() {
+    const modalUrlInput = document.getElementById('modalUrlInput');
+    const loadUrlBtn = document.getElementById('loadUrlBtn');
+    const menuUrlInput = document.getElementById('menuUrlInput');
+
+    if (loadUrlBtn && modalUrlInput) {
+        loadUrlBtn.addEventListener('click', () => {
+            processInputText(modalUrlInput.value);
+            modalUrlInput.value = '';
+        });
+        modalUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                processInputText(modalUrlInput.value);
+                modalUrlInput.value = '';
+            }
+        });
+    }
+
+    if (menuUrlInput) {
+        menuUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                processInputText(menuUrlInput.value);
+                menuUrlInput.value = '';
+            }
+        });
+    }
+}
+
+export { handleOszFile, fetchBeatmapById, processInputText, setupClipboardPasteListener, setupURLInputListeners };
