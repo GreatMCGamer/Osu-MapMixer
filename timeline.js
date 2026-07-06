@@ -2,7 +2,7 @@
  * Interactive Timeline Component (Master Track)
  * Governs interactions, render positioning, and playhead updates for the sequencing track
  */
-import { state } from './state.js';
+import { sharedState } from './shared-state.js';
 import { drawCanvas } from './canvas.js';
 
 /**
@@ -13,7 +13,7 @@ function drawPlayhead() {
     const playhead = document.getElementById('playhead');
     if (!playhead || !masterTrack) return;
 
-    const x = state.playheadPosition * masterTrack.offsetWidth;
+    const x = sharedState.playheadPosition * masterTrack.offsetWidth;
     playhead.style.left = `${x}px`;
 }
 
@@ -29,7 +29,7 @@ function setupTrackInteractions(track) {
         const clickX = e.clientX - rect.left;
         
         // Update Central State and force repaints
-        state.playheadPosition = clickX / rect.width;
+        sharedState.playheadPosition = clickX / rect.width;
         drawPlayhead();
         drawCanvas();
     });

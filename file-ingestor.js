@@ -2,7 +2,7 @@
  * Local File System & Directory Ingestors
  * Interacts with physical directory nodes (Local Filesystem API) and manages drop event parsing logic
  */
-import { showToast } from './ui-shell.js';
+import { showToast } from './utils.js';
 import { handleOszFile } from './extractor.js';
 
 /**
@@ -156,6 +156,16 @@ function setupDragAndDrop() {
             await processDraggedEntries(items);
         }
     }, false);
+    
+    // Add click handler to make drop zone responsive
+    dropZone.addEventListener('click', () => {
+        // Prefer directory picker if available, else trigger file input
+        if (window.showDirectoryPicker) {
+            triggerDirectoryPicker();
+        } else {
+            document.getElementById('oszFileInput').click();
+        }
+    });
 }
 
 export { triggerDirectoryPicker, handleDirectory, processDraggedEntries, setupDragAndDrop };

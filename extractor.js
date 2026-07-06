@@ -2,7 +2,7 @@
  * Beatmap Extractor & URL Ingestion Pipeline
  * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
  */
-import { showToast, showLoader, hideLoader } from './ui-shell.js';
+import { showToast, showLoader, hideLoader } from './utils.js';
 
 /**
  * Decompresses client-side archives in memory using JSZip, parsing configuration strings and extracting sound data
