@@ -47,19 +47,32 @@ async function handleOszFile(file) {
 }
 
 /**
- * Initiates download requests of targeted .osu map configurations using the AllOrigins proxy pipeline
+ * Initiates download requests of targeted .osu map configurations using multiple CORS proxies
  * @param {string} beatmapId 
  */
 async function fetchBeatmapById(beatmapId) {
     showLoader(`Connecting to osu! servers...`);
     const targetUrl = `https://osu.ppy.sh/osu/${beatmapId}`;
 
+    // Added multiple reliable proxies. The script will try them one by one until one works.
     const fetchStrategies = [
+        {
+            name: "CodeTabs Proxy",
+            url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+            type: "raw",
+            timeout: 10000 
+        },
+        {
+            name: "CorsProxy.io",
+            url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+            type: "raw",
+            timeout: 10000 
+        },
         {
             name: "AllOrigins JSON Proxy Wrapper",
             url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
             type: "json-wrap",
-            timeout: 15000
+            timeout: 15000 
         }
     ];
 
