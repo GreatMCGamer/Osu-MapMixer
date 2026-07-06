@@ -4,6 +4,7 @@
  */
 import { showToast } from './utils.js';
 import { handleOszFile } from './extractor.js';
+import { processSingleOsuFile } from './ingestion-handler.js';
 
 /**
  * Invokes modern browser directory selection windows and validates browser capability constraints
@@ -41,6 +42,8 @@ async function handleDirectory(dirHandle) {
                 const name = entry.name.toLowerCase();
                 if (name.endsWith('.osu')) {
                     console.log(`  [osu!] map: ${entry.name}`);
+                    // Process the .osu file with our ingestion handler
+                    await processOsuFile(entry);
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
                     console.log(`  [Audio] track: ${entry.name}`);
@@ -52,6 +55,22 @@ async function handleDirectory(dirHandle) {
     } catch (err) {
         console.error("Error reading directory contents:", err);
         showToast("Error reading directory contents", "error");
+    }
+}
+
+/**
+ * Processes an individual .osu file
+ * @param {FileSystemFileHandle} fileHandle 
+ */
+async function processOsuFile(fileHandle) {
+    try {
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        const fileName = file.name;
+        await processSingleOsuFile(fileName, content);
+    } catch (error) {
+        console.error(`Failed to process file ${fileHandle.name}:`, error);
+        showToast(`Failed to process ${fileHandle.name}`, "error");
     }
 }
 
@@ -80,6 +99,8 @@ async function processDraggedEntries(items) {
                                     const name = subEntry.name.toLowerCase();
                                     if (name.endsWith('.osu')) {
                                         console.log(`  [osu!] map: ${subEntry.name}`);
+                                        // Process the .osu file with our ingestion handler
+                                        await processOsuFile(subEntry);
                                         osuCount++;
                                     } else if (name.endsWith('.mp3')) {
                                         console.log(`  [Audio] track: ${subEntry.name}`);
@@ -98,6 +119,8 @@ async function processDraggedEntries(items) {
                             await handleOszFile(file);
                         } else if (name.endsWith('.osu')) {
                             console.log(`  [osu!] map: ${file.name}`);
+                            // Process the .osu file with our ingestion handler
+                            await processOsuFile(file);
                             osuCount++;
                         } else if (name.endsWith('.mp3')) {
                             console.log(`  [Audio] track: ${file.name}`);
@@ -114,6 +137,8 @@ async function processDraggedEntries(items) {
                     await handleOszFile(file);
                 } else if (name.endsWith('.osu')) {
                     console.log(`  [osu!] map: ${file.name}`);
+                    // Process the .osu file with our ingestion handler
+                    await processOsuFile(file);
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
                     console.log(`  [Audio] track: ${file.name}`);
