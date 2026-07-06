@@ -8,13 +8,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const canvas = document.getElementById('beatmapCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Set canvas dimensions
-    // We'll make it a square canvas with a reasonable size
-    const canvasSize = 600;
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-    
-    // Draw initial canvas content
+    // Set initial canvas dimensions and draw
+    updateCanvasSize();
     drawCanvas();
     
     // Set up event listeners for menu items
@@ -25,11 +20,60 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up drag and drop functionality
     setupDragAndDrop();
+
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        updateCanvasSize();
+        drawCanvas();
+        console.log('Window resized - canvas size updated');
+    });
 });
+
+/**
+ * Pure function to calculate the new canvas size based on window dimensions.
+ * Ensures a square canvas that fits within the window with at least 50px padding.
+ * @param {number} windowWidth 
+ * @param {number} windowHeight 
+ * @param {number} topOffset - The height of the menu bar
+ * @param {number} bottomOffset - The height of the master track
+ * @param {number} padding - The required padding
+ * @returns {number} The new dimension for the square canvas
+ */
+function calculateSquareSize(windowWidth, windowHeight, topOffset, bottomOffset, padding) {
+    const availableWidth = windowWidth - (padding * 2);
+    const availableHeight = windowHeight - topOffset - bottomOffset - (padding * 2);
+    
+    // The square size is the minimum of the available width and height
+    return Math.max(0, Math.min(availableWidth, availableHeight));
+}
+
+/**
+ * Updates the canvas element's width and height based on the window size.
+ */
+function updateCanvasSize() {
+    const canvas = document.getElementById('beatmanCanvas') || document.getElementById('beatmapCanvas');
+    if (!canvas) return;
+
+    const padding = 50;
+    const menuBarHeight = 40;
+    const masterTrackHeight = 100;
+
+    const newSize = calculateSquareSize(
+        window.innerWidth,
+        window.innerHeight,
+        menuBarHeight,
+        masterTrackHeight,
+        padding
+    );
+
+    canvas.width = newSize;
+    canvas.height = newSize;
+}
 
 // Function to draw the initial canvas content
 function drawCanvas() {
     const canvas = document.getElementById('beatmapCanvas');
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
     // Clear canvas
@@ -72,15 +116,17 @@ function setupMenuListeners() {
     const importBtn = document.querySelector('.menu-item:first-child');
     const exportBtn = document.querySelector('.menu-item:last-child');
     
-    importBtn.addEventListener('click', function() {
-        alert('Import functionality would be implemented here');
-        // In a real implementation, this would open a file dialog
-    });
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            alert('Import functionality would be implemented here');
+        });
+    }
     
-    exportBtn.addEventListener('click', function() {
-        alert('Export functionality would be implemented here');
-        // In a real implementation, this would save the beatmap
-    });
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function() {
+            alert('Export functionality would be implemented here');
+        });
+    }
 }
 
 // Set up event listeners for welcome modal buttons
@@ -89,19 +135,19 @@ function setupWelcomeModalListeners() {
     const newCanvasBtn = document.getElementById('newCanvasBtn');
     const welcomeModal = document.getElementById('welcomeModal');
     
-    loadProjectBtn.addEventListener('click', function() {
-        // Hide the welcome modal
-        welcomeModal.style.display = 'none';
-        alert('Load project functionality would be implemented here');
-        // In a real implementation, this would open a file dialog for .osz files or map folders
-    });
+    if (loadProjectBtn) {
+        loadProjectBtn.addEventListener('click', function() {
+            welcomeModal.style.display = 'none';
+            alert('Load project functionality would be implemented here');
+        });
+    }
     
-    newCanvasBtn.addEventListener('click', function() {
-        // Hide the welcome modal
-        welcomeModal.style.display = 'none';
-        alert('New empty canvas functionality would be implemented here');
-        // In a real implementation, this would create a new empty canvas
-    });
+    if (newCanvasBtn) {
+        newCanvasBtn.addEventListener('click', function() {
+            welcomeModal.style.display = 'none';
+            alert('New empty canvas functionality would be implemented here');
+        });
+    }
 }
 
 // Set up drag and drop functionality
@@ -109,12 +155,12 @@ function setupDragAndDrop() {
     const dropZone = document.getElementById('dropZone');
     const welcomeModal = document.getElementById('welcomeModal');
     
-    // Prevent default drag behaviors
+    if (!dropZone) return;
+
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, preventDefaults, false);
     });
     
-    // Highlight drop zone when item is dragged over it
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, highlight, false);
     });
@@ -123,7 +169,6 @@ function setupDragAndDrop() {
         dropZone.addEventListener(eventName, unhighlight, false);
     });
     
-    // Handle dropped files
     dropZone.addEventListener('drop', handleDrop, false);
     
     function preventDefaults(e) {
@@ -144,18 +189,8 @@ function setupDragAndDrop() {
         const files = dt.files;
         
         if (files.length > 0) {
-            // Hide the welcome modal
             welcomeModal.style.display = 'none';
-            
-            // Process the dropped files
             alert(`File dropped: ${files[0].name}\n\nFile processing would be implemented here`);
-            // In a real implementation, this would process .osz files or map folders
         }
     }
 }
-
-// Handle window resize
-window.addEventListener('resize', function() {
-    // In a real implementation, we might need to redraw or adjust canvas
-    console.log('Window resized - canvas may need adjustment');
-});
