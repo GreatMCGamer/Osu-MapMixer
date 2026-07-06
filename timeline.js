@@ -2,6 +2,8 @@
  * Interactive Timeline Component (Master Track)
  * Governs interactions, render positioning, and playhead updates for the sequencing track
  */
+import { state } from './state.js';
+import { drawCanvas } from './canvas.js';
 
 /**
  * Computes and updates the CSS positioning of the red playhead line based on the global state's playhead percentage
@@ -25,9 +27,11 @@ function setupTrackInteractions(track) {
     track.addEventListener('click', function(e) {
         const rect = track.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
+        
+        // Update Central State and force repaints
         state.playheadPosition = clickX / rect.width;
         drawPlayhead();
-        drawCanvas(); // This should be imported from canvas.js
+        drawCanvas();
     });
 }
 

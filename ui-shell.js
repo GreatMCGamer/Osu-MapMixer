@@ -2,6 +2,8 @@
  * Global UI Shell Controllers
  * Centralizes notifications, fullscreen block loaders, and general popups/menus
  */
+import { triggerDirectoryPicker } from './file-ingestor.js';
+import { handleOszFile } from './extractor.js';
 
 /**
  * Displays the global spinner block along with customized progression notifications

@@ -2,8 +2,10 @@
  * Core State & Playback Engine
  * Manages the timeline playback clock, ticks, state mutations, and animation loops
  */
+import { drawCanvas } from './canvas.js';
+import { drawPlayhead } from './timeline.js';
 
-// State Management
+// State Store - acts as our flat, horizontal data layers accessible by reference imports
 const state = {
     isPlaying: false,
     playheadPosition: 0, // Percentage of the track (0 to 1)
@@ -28,7 +30,10 @@ function animationLoop(timestamp) {
         }
         
         state.lastTimestamp = timestamp;
-        // Note: drawCanvas and drawPlayhead are called from the UI components
+        
+        // Fixed: Actively trigger screen and timeline repaints on clock tick
+        drawCanvas();
+        drawPlayhead();
     }
     
     requestAnimationFrame(animationLoop);

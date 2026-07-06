@@ -2,6 +2,8 @@
  * Local File System & Directory Ingestors
  * Interacts with physical directory nodes (Local Filesystem API) and manages drop event parsing logic
  */
+import { showToast } from './ui-shell.js';
+import { handleOszFile } from './extractor.js';
 
 /**
  * Invokes modern browser directory selection windows and validates browser capability constraints

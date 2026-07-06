@@ -2,6 +2,7 @@
  * Beatmap Extractor & URL Ingestion Pipeline
  * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
  */
+import { showToast, showLoader, hideLoader } from './ui-shell.js';
 
 /**
  * Decompresses client-side archives in memory using JSZip, parsing configuration strings and extracting sound data
@@ -53,13 +54,12 @@ async function fetchBeatmapById(beatmapId) {
     showLoader(`Connecting to osu! servers...`);
     const targetUrl = `https://osu.ppy.sh/osu/${beatmapId}`;
 
-    // Only keep the verified proxy strategy that successfully resolved CORS restrictions and fetched the data
     const fetchStrategies = [
         {
             name: "AllOrigins JSON Proxy Wrapper",
             url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
             type: "json-wrap",
-            timeout: 15000 // Large timeout since public wrappers can be throttled
+            timeout: 15000
         }
     ];
 
@@ -132,12 +132,6 @@ function processInputText(input) {
     const text = input.trim();
     if (!text) return;
 
-    // Regex combinations:
-    // 1. https://osu.ppy.sh/beatmapsets/1826388#osu/3748430
-    // 2. https://osu.ppy.sh/beatmaps/3748430
-    // 3. https://osu.ppy.sh/b/3748430
-    // 4. Raw beatmap ID: 3748430
-    
     const bIDRegex = /(?:osu\.ppy\.sh\/b\/|osu\.ppy\.sh\/beatmaps\/|#osu\/)(\d+)/i;
     const match = text.match(bIDRegex);
     
@@ -146,7 +140,6 @@ function processInputText(input) {
         return;
     }
 
-    // Direct numerical input match
     if (/^\d+$/.test(text)) {
         fetchBeatmapById(text);
         return;
@@ -160,7 +153,6 @@ function processInputText(input) {
  */
 function setupClipboardPasteListener() {
     window.addEventListener('paste', (e) => {
-        // Stop intercepting paste events if user is actively writing inside an input field
         const activeElem = document.activeElement;
         if (activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA')) {
             return; 
