@@ -3,14 +3,26 @@
     background-color: #111;
     color: white;
     position: fixed;
-    bottom: 10px;
+    top: calc(var(--divider-top, 66.66%) + 4px); /* Divider height is 4px */
     left: 0;
     right: 0;
-    height: 100px;
+    height: 6.25vh;
     display: flex;
     align-items: center;
     justify-content: flex-start;
     padding: 0 20px;
     z-index: 10;
     border-top: 1px solid #222;
+}
+
+/* Divider */
+.divider {
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: #333;
+    cursor: row-resize;
+    z-index: 15;
+    top: var(--divider-top, 66.66%); /* Use CSS variable with fallback */
 }

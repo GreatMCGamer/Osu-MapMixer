@@ -9,10 +9,13 @@
 /* Canvas container */
 .canvas-container {
     position: fixed;
-    top: 48px; /* Below menu bar */
-    left: 50%;
-    transform: translateX(-50%);
-    margin-top: 24px;
+    top: max(20px, calc(100vh / 48)); /* Matches menu bar height */
+    bottom: calc(100vh - var(--divider-top, 66.66%));
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     z-index: 10;
 }
 

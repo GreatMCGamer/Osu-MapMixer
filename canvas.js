@@ -26,14 +26,19 @@ function updateCanvasSize() {
     if (!canvas) return;
 
     const padding = 50;
-    const menuBarHeight = 48;
-    const masterTrackHeight = 100;
+    // The canvas area is between the menu bar and the divider
+    const menuBarHeight = Math.max(20, window.innerHeight / 48);
+    const dividerElement = document.getElementById('divider');
+    const dividerTop = dividerElement ? dividerElement.getBoundingClientRect().top : window.innerHeight * 0.6666;
+    
+    // The canvas area is between the menu bar and the divider
+    const availableHeight = dividerTop - menuBarHeight;
 
     const newSize = calculateSquareSize(
         window.innerWidth,
         window.innerHeight,
         menuBarHeight,
-        masterTrackHeight,
+        (window.innerHeight - dividerTop),
         padding
     );
 
@@ -67,13 +72,18 @@ function drawCanvas() {
 function drawGrid(ctx, width, height) {
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 1;
-    for (let x = 0; x <= width; x += 50) {
+    const gridSize = 20;
+    const stepX = width / gridSize;
+    const stepY = height / gridSize;
+    
+    for (let i = 0; i <= gridSize; i++) {
+        const x = i * stepX;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
-    }
-    for (let y = 0; y <= height; y += 50) {
+        
+        const y = i * stepY;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);

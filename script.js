@@ -2,6 +2,7 @@
  * Main Orchestrator: Entry Point
  * Ensures DOM readiness before attaching event listeners to imported modules.
  */
+import { setupDividerResizing } from './divider.js';
 import { animationLoop, setupPlaybackControls } from './state.js';
 import { setupMenuListeners, setupWelcomeModalListeners } from './ui-shell.js';
 import { updateCanvasSize, drawCanvas } from './canvas.js';
@@ -38,6 +39,7 @@ async function initializeApp() {
     // We call setup functions AFTER ensuring elements exist in the DOM
     setupMenuListeners();
     setupWelcomeModalListeners();
+    setupDividerResizing();
     setupDragAndDrop();
     setupPlaybackControls();
     setupTrackInteractions(masterTrack);
