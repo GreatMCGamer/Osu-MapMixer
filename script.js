@@ -2,6 +2,7 @@
  * Main Orchestrator: Entry Point
  * Ensures DOM readiness before attaching event listeners to imported modules.
  */
+import { renderTracks } from './track-manager.js';
 import { setupDividerResizing } from './divider.js';
 import { animationLoop, setupPlaybackControls } from './state.js';
 import { setupMenuListeners, setupWelcomeModalListeners } from './ui-shell.js';
@@ -25,15 +26,11 @@ async function initializeApp() {
     }
 
     // 3. Setup UI elements safely
-    const masterTrack = document.getElementById('master-track');
+    renderTracks();
     
     // Ensure playhead exists
-    if (!document.getElementById('playhead')) {
-        const playhead = document.createElement('div');
-        playhead.id = 'playhead';
-        playhead.className = 'playhead';
-        if (masterTrack) masterTrack.appendChild(playhead);
-    }
+    // ... (need to rethink playhead logic for multiple tracks)
+
 
     // 4. Initialize Modules
     // We call setup functions AFTER ensuring elements exist in the DOM
@@ -42,7 +39,7 @@ async function initializeApp() {
     setupDividerResizing();
     setupDragAndDrop();
     setupPlaybackControls();
-    setupTrackInteractions(masterTrack);
+    setupTrackInteractions(); // Updated to not take an element directly, or handle multiple tracks
     setupClipboardPasteListener();
     setupURLInputListeners();
 

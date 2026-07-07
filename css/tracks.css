@@ -1,28 +1,94 @@
-/* Master track at the bottom */
-.master-track {
-    background-color: #111;
-    color: white;
+/* Tracks container at the bottom */
+.tracks-container {
     position: fixed;
-    top: calc(var(--divider-top, 66.66%) + 4px); /* Divider height is 4px */
+    top: calc(var(--divider-top, 66.66%) + 4px);
     left: 0;
     right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 2px;
+    z-index: 10;
+    overflow-y: auto;
+}
+
+/* Tracks Manager Element */
+.tracks-manager {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+/* Master Tracks Container */
+.master-tracks-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Ensures master tracks container is always above normal tracks container */
+    order: 0;
+}
+
+/* Normal Tracks Container */
+.normal-tracks-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Ensures normal tracks container is always below master tracks container */
+    order: 1;
+}
+
+/* Base track style */
+.track {
+    position: relative;
     height: 6.25vh;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
     padding: 0 20px;
-    z-index: 10;
-    border-top: 1px solid #222;
+    margin-bottom: 2px;
+    border-radius: 2px;
 }
 
-/* Divider */
-.divider {
-    position: fixed;
-    left: 0;
-    right: 0;
-    height: 4px;
+/* Master track */
+.track.master {
+    background-color: #222;
+    color: white;
+}
+
+/* Normal track */
+.track.normal {
     background-color: #333;
-    cursor: row-resize;
-    z-index: 15;
-    top: var(--divider-top, 66.66%); /* Use CSS variable with fallback */
+    color: #eee;
+}
+
+/* Icons */
+.track-icon {
+    cursor: pointer;
+    margin-right: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Playhead */
+.playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: red;
+    pointer-events: none;
+}
+
+.add-master-icon {
+    color: #4caf50; /* Green */
+}
+
+.remove-master-icon {
+    color: #f44336; /* Red */
 }

@@ -3,6 +3,7 @@
  * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
  */
 import { showToast, showLoader, hideLoader } from './utils.js';
+import { addNormalTrack } from './track-manager.js';
 
 /**
  * Decompresses client-side archives in memory using JSZip, parsing configuration strings and extracting sound data
@@ -29,7 +30,7 @@ async function handleOszFile(file) {
             if (nameLower.endsWith('.osu')) {
                 const textContent = await zipEntry.async("string");
                 console.log(`%c[OSU Map Extracted]: ${filename}`, "color: #28a745; font-weight: bold;");
-                console.log(textContent.slice(0, 450) + "\n... [truncated]");
+                addNormalTrack({ name: filename });
                 osuCount++;
             } else if (nameLower.endsWith('.mp3')) {
                 const bufferContent = await zipEntry.async("arraybuffer");

@@ -8,7 +8,10 @@ const sharedState = {
     isPlaying: false,
     playheadPosition: 0, // Percentage of the track (0 to 1)
     lastTimestamp: 0,
-    playbackSpeed: 0.001 // Progress per millisecond
+    playbackSpeed: 0.001, // Progress per millisecond
+    tracks: [
+        { id: 'master-1', type: 'master' }
+    ]
 };
 
 export { sharedState };

@@ -19,12 +19,16 @@
     z-index: 10;
 }
 
-/* Playhead */
-.playhead {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background-color: #ff66aa;
+/* Divider */
+.divider {
+    position: fixed;
+    top: var(--divider-top, 66.66%);
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: #444;
+    cursor: row-resize;
     z-index: 20;
+    user-select: none;
 }
+

@@ -9,22 +9,33 @@ import { drawCanvas } from './canvas.js';
  * Computes and updates the CSS positioning of the red playhead line based on the global state's playhead percentage
  */
 function drawPlayhead() {
-    const masterTrack = document.getElementById('master-track');
-    const playhead = document.getElementById('playhead');
-    if (!playhead || !masterTrack) return;
+    // Get all master tracks
+    const masterTracks = document.querySelectorAll('.track.master');
+    
+    masterTracks.forEach(masterTrack => {
+        let playhead = masterTrack.querySelector('.playhead');
+        if (!playhead) {
+            playhead = document.createElement('div');
+            playhead.className = 'playhead';
+            masterTrack.appendChild(playhead);
+        }
 
-    const x = sharedState.playheadPosition * masterTrack.offsetWidth;
-    playhead.style.left = `${x}px`;
+        const x = sharedState.playheadPosition * masterTrack.offsetWidth;
+        playhead.style.left = `${x}px`;
+    });
 }
 
 /**
  * Listens for user clicks on the master track container to recalculate and seek the playback timeline's percentage
- * @param {HTMLElement} track 
  */
-function setupTrackInteractions(track) {
-    if (!track) return;
+function setupTrackInteractions() {
+    const container = document.getElementById('tracks-container');
+    if (!container) return;
     
-    track.addEventListener('click', function(e) {
+    container.addEventListener('click', function(e) {
+        const track = e.target.closest('.track.master');
+        if (!track) return;
+        
         const rect = track.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         

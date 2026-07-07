@@ -5,6 +5,7 @@
 
 import { showToast } from './utils.js';
 import { parseOsuToSourceAsset } from './ingestion-worker.js';
+import { addNormalTrack } from './track-manager.js';
 
 /**
  * Processes raw .osu file content using the ingestion worker
@@ -49,6 +50,7 @@ async function processSingleOsuFile(fileName, content) {
     try {
         const sourceAsset = processOsuContent(content, fileName);
         const savedAsset = saveSourceAsset(sourceAsset);
+        addNormalTrack({ name: fileName });
         showToast(`Successfully processed ${fileName}`, "success");
         return savedAsset;
     } catch (error) {
