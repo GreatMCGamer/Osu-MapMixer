@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Osu! Map Mixer</title>
-    <link rel="stylesheet" href="css/background.css">
-    <link rel="stylesheet" href="css/top-bar.css">
-    <link rel="stylesheet" href="css/canvas.css">
-    <link rel="stylesheet" href="css/tracks.css">
-    <link rel="stylesheet" href="css/pop-up.css">
+    <link rel="stylesheet" href="/src/ui/css/background.css">
+    <link rel="stylesheet" href="/src/ui/css/top-bar.css">
+    <link rel="stylesheet" href="/src/ui/css/canvas.css">
+    <link rel="stylesheet" href="/src/ui/css/tracks.css">
+    <link rel="stylesheet" href="/src/ui/css/pop-up.css">
     <!-- JSZip Library for client-side, in-memory decompression -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -76,7 +76,12 @@
         <!-- Tracks will be rendered here -->
     </div>
 
+    <!-- Bottom status bar -->
+    <div class="bottom-status-bar" id="bottom-status-bar">
+        <div class="info-bubble" id="zoom-bubble">Zoom: 100%</div>
+    </div>
+
     <!-- Fixed script tag with type="module" to enable ES modules processing -->
-    <script type="module" src="script.js"></script>
+    <script type="module" src="/src/app.js"></script>
 </body>
 </html>

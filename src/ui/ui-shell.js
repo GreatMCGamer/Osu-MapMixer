@@ -2,9 +2,9 @@
  * Global UI Shell Controllers
  * Centralizes notifications, fullscreen block loaders, and general popups/menus
  */
-import { triggerDirectoryPicker } from './file-ingestor.js';
-import { handleOszFile } from './extractor.js';
-import { showLoader, hideLoader, showToast } from './utils.js';
+import { triggerDirectoryPicker } from '../pipeline/file-ingestor.js';
+import { handleOszFile } from '../pipeline/extractor.js';
+import { showLoader, hideLoader, showToast } from '../engine/utils.js';
 
 /**
  * Binds actions to navigation links inside the top header

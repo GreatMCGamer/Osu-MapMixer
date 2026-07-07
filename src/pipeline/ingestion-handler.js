@@ -3,9 +3,10 @@
  * Integrates the ingestion-worker.js with the existing file processing pipeline
  */
 
-import { showToast } from './utils.js';
+import { showToast } from '../engine/utils.js';
 import { parseOsuToSourceAsset } from './ingestion-worker.js';
-import { addNormalTrack } from './track-manager.js';
+import { addNormalTrack } from '../engine/track-manager.js';
+import { sharedState } from '../core/shared-state.js';
 
 /**
  * Processes raw .osu file content using the ingestion worker
@@ -31,9 +32,11 @@ function processOsuContent(osuContent, fileName) {
  */
 function saveSourceAsset(sourceAsset) {
     try {
-        // In a real implementation, this would save to a database or shared state
+        if (!sharedState.sourceAssets) {
+            sharedState.sourceAssets = {};
+        }
+        sharedState.sourceAssets[sourceAsset.assetId] = sourceAsset;
         console.log(`%c[Saved]: Asset ${sourceAsset.assetId}`, "color: #28a745; font-weight: bold;");
-        console.log(sourceAsset);
         return sourceAsset;
     } catch (error) {
         console.error(`%c[Error]: Failed to save asset`, "color: #dc3545; font-weight: bold;", error);
@@ -45,12 +48,16 @@ function saveSourceAsset(sourceAsset) {
  * Processes a single .osu file
  * @param {string} fileName - Name of the file
  * @param {string} content - Content of the file
+ * @param {string|null} packageContext - Name of the package or source context
  */
-async function processSingleOsuFile(fileName, content) {
+async function processSingleOsuFile(fileName, content, packageContext = null) {
     try {
         const sourceAsset = processOsuContent(content, fileName);
+        if (packageContext) {
+            sourceAsset.packageContext = packageContext;
+        }
         const savedAsset = saveSourceAsset(sourceAsset);
-        addNormalTrack({ name: fileName });
+        addNormalTrack({ name: fileName, assetId: savedAsset.assetId, sourceAsset: savedAsset });
         showToast(`Successfully processed ${fileName}`, "success");
         return savedAsset;
     } catch (error) {

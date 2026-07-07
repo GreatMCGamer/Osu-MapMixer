@@ -2,8 +2,8 @@
  * Local File System & Directory Ingestors
  * Interacts with physical directory nodes (Local Filesystem API) and manages drop event parsing logic
  */
-import { showToast } from './utils.js';
-import { handleOszFile } from './extractor.js';
+import { showToast } from '../engine/utils.js';
+import { handleOszFile, loadMp3File } from './extractor.js';
 import { processSingleOsuFile } from './ingestion-handler.js';
 
 /**
@@ -43,11 +43,18 @@ async function handleDirectory(dirHandle) {
                 if (name.endsWith('.osu')) {
                     console.log(`  [osu!] map: ${entry.name}`);
                     // Process the .osu file with our ingestion handler
-                    await processOsuFile(entry);
+                    await processOsuFile(entry, dirHandle.name);
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
                     console.log(`  [Audio] track: ${entry.name}`);
-                    mp3Count++;
+                    try {
+                        const file = await entry.getFile();
+                        const arrayBuffer = await file.arrayBuffer();
+                        loadMp3File(entry.name, arrayBuffer, dirHandle.name);
+                        mp3Count++;
+                    } catch (e) {
+                        console.error("Error reading directory MP3:", entry.name, e);
+                    }
                 }
             }
         }
@@ -61,13 +68,14 @@ async function handleDirectory(dirHandle) {
 /**
  * Processes an individual .osu file
  * @param {FileSystemFileHandle} fileHandle 
+ * @param {string|null} packageContext
  */
-async function processOsuFile(fileHandle) {
+async function processOsuFile(fileHandle, packageContext = null) {
     try {
         const file = await fileHandle.getFile();
         const content = await file.text();
         const fileName = file.name;
-        await processSingleOsuFile(fileName, content);
+        await processSingleOsuFile(fileName, content, packageContext);
     } catch (error) {
         console.error(`Failed to process file ${fileHandle.name}:`, error);
         showToast(`Failed to process ${fileHandle.name}`, "error");
@@ -100,11 +108,18 @@ async function processDraggedEntries(items) {
                                     if (name.endsWith('.osu')) {
                                         console.log(`  [osu!] map: ${subEntry.name}`);
                                         // Process the .osu file with our ingestion handler
-                                        await processOsuFile(subEntry);
+                                        await processOsuFile(subEntry, entry.name);
                                         osuCount++;
                                     } else if (name.endsWith('.mp3')) {
                                         console.log(`  [Audio] track: ${subEntry.name}`);
-                                        mp3Count++;
+                                        try {
+                                            const file = await subEntry.getFile();
+                                            const arrayBuffer = await file.arrayBuffer();
+                                            loadMp3File(subEntry.name, arrayBuffer, entry.name);
+                                            mp3Count++;
+                                        } catch (e) {
+                                            console.error("Error reading sub-entry MP3:", subEntry.name, e);
+                                        }
                                     }
                                 }
                             }
@@ -124,7 +139,13 @@ async function processDraggedEntries(items) {
                             osuCount++;
                         } else if (name.endsWith('.mp3')) {
                             console.log(`  [Audio] track: ${file.name}`);
-                            mp3Count++;
+                            try {
+                                const arrayBuffer = await file.arrayBuffer();
+                                loadMp3File(file.name, arrayBuffer);
+                                mp3Count++;
+                            } catch (e) {
+                                console.error("Error reading file MP3:", file.name, e);
+                            }
                         }
                     }
                 }
@@ -142,7 +163,13 @@ async function processDraggedEntries(items) {
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
                     console.log(`  [Audio] track: ${file.name}`);
-                    mp3Count++;
+                    try {
+                        const arrayBuffer = await file.arrayBuffer();
+                        loadMp3File(file.name, arrayBuffer);
+                        mp3Count++;
+                    } catch (e) {
+                        console.error("Error reading file MP3:", file.name, e);
+                    }
                 }
             }
         }

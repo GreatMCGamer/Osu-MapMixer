@@ -88,6 +88,11 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
     let section = "";
     
     let difficultyName = "Unknown";
+    let title = "Unknown Title";
+    let artist = "Unknown Artist";
+    let audioFilename = "";
+    let sliderMultiplier = 1.4; // Default fallback
+    let sliderTickRate = 1.0;
     const rawTimingLines = [];
     const rawHitObjectLines = [];
 
@@ -100,8 +105,24 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
             continue;
         }
 
-        if (section === "Metadata" && line.startsWith("Version:")) {
-            difficultyName = line.substring(8).trim();
+        if (section === "General") {
+            if (line.startsWith("AudioFilename:")) {
+                audioFilename = line.substring(14).trim();
+            }
+        } else if (section === "Metadata") {
+            if (line.startsWith("Version:")) {
+                difficultyName = line.substring(8).trim();
+            } else if (line.startsWith("Title:")) {
+                title = line.substring(6).trim();
+            } else if (line.startsWith("Artist:")) {
+                artist = line.substring(7).trim();
+            }
+        } else if (section === "Difficulty") {
+            if (line.startsWith("SliderMultiplier:")) {
+                sliderMultiplier = parseFloat(line.split(':')[1].trim());
+            } else if (line.startsWith("SliderTickRate:")) {
+                sliderTickRate = parseFloat(line.split(':')[1].trim());
+            }
         } else if (section === "TimingPoints") {
             rawTimingLines.push(line);
         } else if (section === "HitObjects") {
@@ -270,13 +291,33 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
             // Fallback for single point / degenerate curves
             if (bakedPath.length === 0) bakedPath.push({ x, y, dist: 0 });
 
+            // Find active timing point for slider velocity multiplier
+            let activeVelocityMult = 1.0;
+            for (let i = 0; i < finalTimingPoints.length; i++) {
+                const tp = finalTimingPoints[i];
+                if (tp.beat <= beat) {
+                    if (!tp.uninherited) {
+                        activeVelocityMult = tp.sliderVelocityMult;
+                    } else {
+                        activeVelocityMult = 1.0;
+                    }
+                } else {
+                    break;
+                }
+            }
+            const pixelsPerBeat = 100.0 * sliderMultiplier * activeVelocityMult;
+            const durationBeats = (pixelLength / pixelsPerBeat) * slides;
+            const endBeat = beat + durationBeats;
+
             sliderData = {
                 curveType,
                 pixelLength,
                 slides,
                 edgeHitsounds: [], // Can be populated if edgeSounds exist in string
                 edgeAdditions: [],
-                bakedPath
+                bakedPath,
+                durationBeats,
+                endBeat
             };
         }
 
@@ -298,6 +339,9 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
     return {
         assetId: generateUUID(), // Unique representation of this map file 
         difficultyName,
+        title,
+        artist,
+        audioFilename,
         originalBpm, // Kept for UI reference [cite: 20]
         timingPoints: finalTimingPoints,
         hitObjects

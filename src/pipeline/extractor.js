@@ -2,8 +2,10 @@
  * Beatmap Extractor & URL Ingestion Pipeline
  * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
  */
-import { showToast, showLoader, hideLoader } from './utils.js';
-import { addNormalTrack } from './track-manager.js';
+import { showToast, showLoader, hideLoader } from '../engine/utils.js';
+import { addNormalTrack, renderTracks } from '../engine/track-manager.js';
+import { processSingleOsuFile } from './ingestion-handler.js';
+import { sharedState } from '../core/shared-state.js';
 
 /**
  * Decompresses client-side archives in memory using JSZip, parsing configuration strings and extracting sound data
@@ -30,11 +32,16 @@ async function handleOszFile(file) {
             if (nameLower.endsWith('.osu')) {
                 const textContent = await zipEntry.async("string");
                 console.log(`%c[OSU Map Extracted]: ${filename}`, "color: #28a745; font-weight: bold;");
-                addNormalTrack({ name: filename });
+                try {
+                    await processSingleOsuFile(filename, textContent, file.name);
+                } catch (e) {
+                    console.error("Error processing zip .osu file:", e);
+                }
                 osuCount++;
             } else if (nameLower.endsWith('.mp3')) {
                 const bufferContent = await zipEntry.async("arraybuffer");
                 console.log(`%c[Audio Extracted]: ${filename}`, "color: #ff9800; font-weight: bold;");
+                loadMp3File(filename, bufferContent, file.name);
                 mp3Count++;
             }
         }
@@ -211,4 +218,47 @@ function setupURLInputListeners() {
     }
 }
 
-export { handleOszFile, fetchBeatmapById, processInputText, setupClipboardPasteListener, setupURLInputListeners };
+/**
+ * Loads an MP3 arraybuffer, extracts duration using native browser Audio element,
+ * adds it to sharedState, and re-renders tracks.
+ * @param {string} filename 
+ * @param {ArrayBuffer} arrayBuffer 
+ * @param {string|null} packageContext
+ */
+function loadMp3File(filename, arrayBuffer, packageContext = null) {
+    const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio();
+    audio.src = url;
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+        console.log(`[Audio Extracted]: ${filename} (package: ${packageContext}) duration is ${duration}s`);
+        
+        if (!sharedState.mp3Files) {
+            sharedState.mp3Files = [];
+        }
+        
+        const id = packageContext ? `${packageContext}/${filename}` : filename;
+        const idx = sharedState.mp3Files.findIndex(f => f.id === id);
+        const fileObj = { id, filename, packageContext, duration, url, blob };
+        if (idx !== -1) {
+            sharedState.mp3Files[idx] = fileObj;
+        } else {
+            sharedState.mp3Files.push(fileObj);
+        }
+        
+        if (!sharedState.selectedMp3) {
+            sharedState.selectedMp3 = fileObj;
+            const durationMs = duration * 1000;
+            sharedState.playbackSpeed = 1 / durationMs;
+        }
+        
+        renderTracks();
+    };
+    audio.onerror = (e) => {
+        console.error("Failed to load MP3 metadata for:", filename, e);
+    };
+}
+
+export { handleOszFile, fetchBeatmapById, processInputText, setupClipboardPasteListener, setupURLInputListeners, loadMp3File };

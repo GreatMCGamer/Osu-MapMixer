@@ -2,8 +2,8 @@
  * Core State & Playback Engine
  * Manages the timeline playback clock, ticks, state mutations, and animation loops
  */
-import { drawCanvas } from './canvas.js';
-import { drawPlayhead } from './timeline.js';
+import { drawCanvas } from '../ui/canvas.js';
+import { drawPlayhead } from '../engine/timeline.js';
 import { sharedState } from './shared-state.js';
 
 /**
