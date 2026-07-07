@@ -1,0 +1,50 @@
+/* Menu bar at the top */
+.menu-bar {
+    background-color: #111;
+    color: white;
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 48px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    border-bottom: 1px solid #222;
+}
+
+.menu-brand {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #ff66aa;
+}
+
+.menu-group {
+    display: flex;
+    gap: 16px;
+}
+
+.menu-item {
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.menu-item:hover {
+    background-color: #222;
+}
+
+.menu-search-wrapper {
+    width: 320px;
+    margin: 0 20px;
+}
+
+.menu-search-wrapper input {
+    padding: 6px 12px;
+    font-size: 13px;
+    width: 100%;
+}

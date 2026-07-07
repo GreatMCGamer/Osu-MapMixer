@@ -1,0 +1,27 @@
+/* Canvas styling */
+#beatmapCanvas {
+    background-color: #000; /* Black square canvas */
+    display: block;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Canvas container */
+.canvas-container {
+    position: fixed;
+    top: 48px; /* Below menu bar */
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 24px;
+    z-index: 10;
+}
+
+/* Playhead */
+.playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #ff66aa;
+    z-index: 20;
+}

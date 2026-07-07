@@ -1,0 +1,44 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Body background color */
+body {
+    background-color: #1a1a1a; /* Dark premium background */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    color: #e0e0e0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .menu-bar {
+        padding: 0 16px;
+    }
+    
+    .menu-search-wrapper {
+        display: none; /* Hide top search bar on small mobile screens */
+    }
+    
+    .master-track {
+        height: 80px;
+    }
+    
+    .modal-content {
+        padding: 24px;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}

@@ -1,0 +1,16 @@
+/* Master track at the bottom */
+.master-track {
+    background-color: #111;
+    color: white;
+    position: fixed;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 20px;
+    z-index: 10;
+    border-top: 1px solid #222;
+}
