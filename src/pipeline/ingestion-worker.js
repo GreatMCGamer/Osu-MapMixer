@@ -21,18 +21,21 @@ function getPointOnLinear(p1, p2, t) {
 }
 
 function getPointOnBezier(points, t) {
-    const n = points.length - 1;
-    if (n === 0) return points[0];
-    if (n === 1) return getPointOnLinear(points[0], points[1], t);
+    const n = points.length;
+    if (n === 0) return [0, 0];
+    if (n === 1) return points[0];
 
-    const newPoints = [];
-    for (let i = 0; i < n; i++) {
-        newPoints.push([
-            points[i][0] * (1 - t) + points[i + 1][0] * t,
-            points[i][1] * (1 - t) + points[i + 1][1] * t
-        ]);
+    // Iterative evaluation to prevent stack overflow
+    let current = points.slice();
+    for (let i = 1; i < n; i++) {
+        for (let j = 0; j < n - i; j++) {
+            current[j] = [
+                current[j][0] * (1 - t) + current[j + 1][0] * t,
+                current[j][1] * (1 - t) + current[j + 1][1] * t
+            ];
+        }
     }
-    return getPointOnBezier(newPoints, t);
+    return current[0];
 }
 
 function getPointOnPerfectCurve(points, t) {
@@ -180,22 +183,42 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
             }
         }
         if (!activeSegment) return 0;
+        
+        let msPerBeat = activeSegment.msPerBeat;
+        if (msPerBeat === 0) msPerBeat = 0.0001; // Avoid divide by zero for infinite BPM
+        if (!isFinite(msPerBeat) || isNaN(msPerBeat)) {
+            // If msPerBeat is Infinity (BPM 0)
+            return activeSegment.beatOffset;
+        }
+
         // B(t) = beatOffset + ((t - startMs) / msPerBeat)
-        return activeSegment.beatOffset + ((t - activeSegment.startMs) / activeSegment.msPerBeat);
+        return activeSegment.beatOffset + ((t - activeSegment.startMs) / msPerBeat);
     };
 
     // Prepare final contract timing points
-    const finalTimingPoints = parsedTimingPoints.map(tp => ({
-        beat: getBeatAtTime(tp.time),
-        timeMs: tp.time,
-        msPerBeat: tp.uninherited ? tp.msPerBeat : 0, 
-        meter: tp.meter,
-        sampleSet: tp.sampleSet,
-        sampleIndex: tp.sampleIndex,
-        volume: tp.volume,
-        uninherited: tp.uninherited,
-        sliderVelocityMult: tp.uninherited ? 1.0 : (100.0 / Math.abs(tp.msPerBeat))
-    }));
+    const finalTimingPoints = parsedTimingPoints.map(tp => {
+        let svMult = 1.0;
+        if (!tp.uninherited) {
+            let msPerBeat = tp.msPerBeat;
+            if (msPerBeat === 0) msPerBeat = -0.0001; // Avoid divide by zero for infinite velocity
+            if (!isFinite(msPerBeat) || isNaN(msPerBeat)) {
+                svMult = 0; // 0 velocity
+            } else {
+                svMult = 100.0 / Math.abs(msPerBeat);
+            }
+        }
+        return {
+            beat: getBeatAtTime(tp.time),
+            timeMs: tp.time,
+            msPerBeat: tp.uninherited ? tp.msPerBeat : 0, 
+            meter: tp.meter,
+            sampleSet: tp.sampleSet,
+            sampleIndex: tp.sampleIndex,
+            volume: tp.volume,
+            uninherited: tp.uninherited,
+            sliderVelocityMult: svMult
+        };
+    });
 
     // 3. Parse Hit Objects
     const hitObjects = [];
@@ -248,6 +271,32 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
                 const coords = curveData[i].split(':');
                 controlPoints.push([parseInt(coords[0]), parseInt(coords[1])]);
             }
+            
+            // Limit to prevent hangs on malicious maps (e.g., Aspire)
+            if (controlPoints.length > 200) {
+                controlPoints.length = 200;
+            }
+
+            // Split into piecewise bezier segments by finding identical consecutive points
+            const bezierSegments = [];
+            if (curveType === "Bezier") {
+                let currentSegment = [controlPoints[0]];
+                for (let i = 1; i < controlPoints.length; i++) {
+                    const p = controlPoints[i];
+                    const prev = controlPoints[i-1];
+                    if (p[0] === prev[0] && p[1] === prev[1]) {
+                        if (currentSegment.length > 1) {
+                            bezierSegments.push(currentSegment);
+                        }
+                        currentSegment = [p];
+                    } else {
+                        currentSegment.push(p);
+                    }
+                }
+                if (currentSegment.length > 1) {
+                    bezierSegments.push(currentSegment);
+                }
+            }
 
             // Bake path (O(log N) lookup density optimization)
             const bakedPath = [];
@@ -264,6 +313,11 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
                         currPoint = getPointOnLinear(controlPoints[0], controlPoints[controlPoints.length - 1], t);
                     } else if (curveType === "PerfectCurve" && controlPoints.length === 3) {
                         currPoint = getPointOnPerfectCurve(controlPoints, t);
+                    } else if (curveType === "Bezier" && bezierSegments.length > 0) {
+                        // Approximate by splitting t evenly across segments
+                        const segIndex = Math.min(Math.floor(t * bezierSegments.length), bezierSegments.length - 1);
+                        const segT = (t * bezierSegments.length) - segIndex;
+                        currPoint = getPointOnBezier(bezierSegments[segIndex], segT);
                     } else {
                         currPoint = getPointOnBezier(controlPoints, t);
                     }
@@ -306,7 +360,11 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
                     break;
                 }
             }
-            const pixelsPerBeat = 100.0 * sliderMultiplier * activeVelocityMult;
+            let pixelsPerBeat = 100.0 * sliderMultiplier * activeVelocityMult;
+            if (pixelsPerBeat === 0) pixelsPerBeat = 0.0001; // Avoid divide by zero for 0 velocity sliders
+            if (!isFinite(pixelsPerBeat) || isNaN(pixelsPerBeat)) {
+                pixelsPerBeat = 999999999;
+            }
             const durationBeats = (pixelLength / pixelsPerBeat) * slides;
             const endBeat = beat + durationBeats;
 

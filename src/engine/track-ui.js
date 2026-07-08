@@ -11,7 +11,12 @@ export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, o
 
     // 1. Draw beat lines (subtle white/grey lines)
     if (showBeatLines) {
-        beatLines.forEach(bl => {
+        let linesToRender = beatLines;
+        if (beatLines.length > 2000) {
+            const step = Math.ceil(beatLines.length / 2000);
+            linesToRender = beatLines.filter((_, i) => i % step === 0);
+        }
+        linesToRender.forEach(bl => {
             const pct = (bl.timeMs / totalDurationMs) * 100;
             if (pct < 0 || pct > 100) return;
 
@@ -30,7 +35,12 @@ export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, o
 
     // 2. Draw red lines (uninherited timing points)
     if (showRedLines) {
-        redLines.forEach(rl => {
+        let linesToRender = redLines;
+        if (redLines.length > 2000) {
+            const step = Math.ceil(redLines.length / 2000);
+            linesToRender = redLines.filter((_, i) => i % step === 0);
+        }
+        linesToRender.forEach(rl => {
             const pct = (rl.timeMs / totalDurationMs) * 100;
             if (pct < 0 || pct > 100) return;
 
@@ -55,7 +65,12 @@ export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, o
 
     // 3. Draw green lines (volume changes)
     if (showGreenLines) {
-        greenLines.forEach(gl => {
+        let linesToRender = greenLines;
+        if (greenLines.length > 2000) {
+            const step = Math.ceil(greenLines.length / 2000);
+            linesToRender = greenLines.filter((_, i) => i % step === 0);
+        }
+        linesToRender.forEach(gl => {
             const pct = (gl.timeMs / totalDurationMs) * 100;
             if (pct < 0 || pct > 100) return;
 

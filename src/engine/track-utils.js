@@ -15,6 +15,7 @@ export function getNoteTimes(note, track) {
                 }
             }
         }
+        if (!isFinite(activeMsPerBeat) || isNaN(activeMsPerBeat)) activeMsPerBeat = 0;
         endTime = startTime + note.sliderData.durationBeats * activeMsPerBeat;
     } else if (note.type === 'spinner' && note.spinnerData && note.spinnerData.durationBeats) {
         let activeMsPerBeat = 500;
@@ -25,6 +26,7 @@ export function getNoteTimes(note, track) {
                 }
             }
         }
+        if (!isFinite(activeMsPerBeat) || isNaN(activeMsPerBeat)) activeMsPerBeat = 0;
         endTime = startTime + note.spinnerData.durationBeats * activeMsPerBeat;
     }
     return { startTime, endTime };
@@ -185,7 +187,7 @@ export function getTimingAndBeatLines(timingAsset, totalDurationMs) {
         const endMs = nextTp && typeof nextTp.timeMs === 'number' ? nextTp.timeMs : totalDurationMs;
         const msPerBeat = tp.msPerBeat;
 
-        if (!msPerBeat || msPerBeat <= 0) continue;
+        if (!msPerBeat || msPerBeat < 10) continue; // max 6000 bpm, avoids infinite loops on aspire maps
 
         let beatIdx = 0;
         let time = startMs;
@@ -497,7 +499,10 @@ export function convertBeatToMs(beat, segments) {
     }
 
     const beatDelta = beat - activeSeg.beatOffset;
-    const msPerBeat = 60000 / activeSeg.bpm;
+    let bpm = activeSeg.bpm;
+    if (bpm === 0) bpm = 0.0001;
+    let msPerBeat = 60000 / bpm;
+    if (!isFinite(msPerBeat) || isNaN(msPerBeat)) msPerBeat = 0;
     return activeSeg.startMs + (beatDelta * msPerBeat);
 }
 
@@ -514,7 +519,12 @@ export function convertMsToBeat(ms, segments) {
         }
     }
     const msDelta = ms - activeSeg.startMs;
-    const msPerBeat = 60000 / activeSeg.bpm;
+    let bpm = activeSeg.bpm;
+    if (bpm === 0) bpm = 0.0001;
+    let msPerBeat = 60000 / bpm;
+    if (msPerBeat === 0) msPerBeat = 0.0001;
+    if (!isFinite(msPerBeat) || isNaN(msPerBeat)) return activeSeg.beatOffset;
+    
     return activeSeg.beatOffset + (msDelta / msPerBeat);
 }
 
