@@ -1,0 +1,162 @@
+
+/* ==========================================
+   NORMAL TRACK Component Styles, Clips & Notes
+   ========================================== */
+.track.normal {
+    background-color: #1e1e1e;
+    color: #eee;
+}
+
+/* Clips rendering */
+.timeline-clip {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    background: linear-gradient(135deg, rgba(80, 110, 240, 0.25), rgba(120, 150, 255, 0.15));
+    border: 1px solid rgba(120, 150, 255, 0.4);
+    border-radius: 6px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.timeline-clip:hover {
+    background: linear-gradient(135deg, rgba(80, 110, 240, 0.35), rgba(120, 150, 255, 0.25));
+    border-color: rgba(120, 150, 255, 0.6);
+}
+
+/* Clip Selection / Highlighting Handle */
+.clip-upper-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 20%; /* 1/5th clip thickness */
+    background-color: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    z-index: 20;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.clip-upper-handle:hover {
+    background-color: rgba(255, 102, 170, 0.35) !important;
+    border-bottom: 1px solid rgba(255, 102, 170, 0.8) !important;
+}
+
+/* Highlighted Clip glowing effect */
+.timeline-clip.highlighted-clip {
+    background: linear-gradient(135deg, rgba(255, 102, 170, 0.35), rgba(255, 150, 200, 0.25)) !important;
+    border-color: rgba(255, 102, 170, 0.8) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 12px rgba(255, 102, 170, 0.4) !important;
+}
+
+/* Timeline Notes / Objects */
+.timeline-note {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Hit Circle indicator */
+.timeline-note.circle::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ff66aa;
+    box-shadow: 0 0 6px rgba(255, 102, 170, 0.8);
+    position: absolute;
+    left: -4px;
+}
+
+/* Hit Slider indicator */
+.timeline-note.slider {
+    background: rgba(255, 182, 193, 0.3);
+    border-top: 2px solid #ffa5b5;
+    border-bottom: 2px solid #ffa5b5;
+    border-radius: 3px;
+    box-shadow: 0 0 4px rgba(255, 165, 181, 0.3);
+}
+
+.timeline-note.slider::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #ffa5b5;
+    position: absolute;
+    left: 0;
+}
+
+.timeline-note.slider::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #ffa5b5;
+    position: absolute;
+    right: 0;
+}
+
+/* Hit Spinner indicator */
+.timeline-note.spinner {
+    height: 12px;
+    margin-top: auto;
+    margin-bottom: auto;
+    background: rgba(140, 80, 110, 0.55);
+    border-top: 2px solid #cc4488;
+    border-bottom: 2px solid #cc4488;
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(204, 68, 136, 0.4);
+}
+
+/* Track Lane Green volume change lines */
+.timing-green-line {
+    border-left: 1.5px solid rgba(68, 255, 68, 0.45);
+    z-index: 2;
+}
+
+.timing-green-line .timing-line-label {
+    background-color: rgba(68, 255, 68, 0.9);
+    color: #111;
+    box-shadow: 0 0 4px rgba(68, 255, 68, 0.4);
+}
+
+/* ==========================================
+   Timeline Selection Overlay & Highlight Styles
+   ========================================== */
+.timeline-selection-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(255, 102, 170, 0.15);
+    border-left: 2.5px solid rgba(255, 102, 170, 0.85);
+    border-right: 2.5px solid rgba(255, 102, 170, 0.85);
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Highlighted note glow when in highlight selection */
+.timeline-note.selected-note.circle::before {
+    background-color: #fff !important;
+    box-shadow: 0 0 12px #ff66aa, 0 0 4px #ff66aa !important;
+    transform: scale(1.5);
+}
+
+.timeline-note.selected-note.slider {
+    background: rgba(255, 102, 170, 0.45) !important;
+    border-top: 2px solid #ff66aa !important;
+    border-bottom: 2px solid #ff66aa !important;
+    box-shadow: 0 0 10px rgba(255, 102, 170, 0.6) !important;
+}
+
+.timeline-note.selected-note.slider::before,
+.timeline-note.selected-note.slider::after {
+    background-color: #fff !important;
+    transform: scale(1.3);
+}

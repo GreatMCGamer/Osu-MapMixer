@@ -20,7 +20,9 @@ const sharedState = {
         }
     ],
     highlightedTrackId: null, // Currently highlighted track ID for visualizer rendering
-    lastMasterDifficulty: { CS: 4.5, AR: 9, OD: 8, HP: 4 }
+    lastMasterDifficulty: { CS: 4.5, AR: 9, OD: 8, HP: 4 },
+    beatDivider: 4, // Beat snap divisor (1/1, 1/2, 1/3, 1/4, etc.)
+    volume: 0.5 // Audio playback volume (0 to 1, 50% default)
 };
 
 /**

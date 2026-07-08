@@ -1,4 +1,5 @@
 import { sharedState, getHighlightedTrackId, getActiveDifficulty } from '../core/shared-state.js';
+import { getNoteTimes, projectObjectToMaster, convertBeatToMs } from '../engine/track-utils.js';
 
 /**
  * Main Beatmap Canvas Visualizer
@@ -16,30 +17,61 @@ const DEFAULT_COMBO_COLORS = [
  * Checks if a track contains a pattern clip active at a specific timestamp.
  */
 function trackHasClipAt(track, timeMs) {
+    if (track.clips && track.clips.length > 0) {
+        // Build timing segments for master track
+        let timingSegments = [];
+        const timingAsset = (sharedState.sourceAssets && sharedState.selectedTimingSourceAssetId) 
+            ? sharedState.sourceAssets[sharedState.selectedTimingSourceAssetId] : null;
+        if (timingAsset && timingAsset.timingPoints) {
+            const uninheritedPoints = timingAsset.timingPoints.filter(tp => tp.uninherited);
+            const sortedLines = [...uninheritedPoints].sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
+            let currentBeatOffset = 0;
+            let lastMs = 0;
+            let lastMsPerBeat = 0;
+            for (let i = 0; i < sortedLines.length; i++) {
+                const startMs = sortedLines[i].timeMs || 0;
+                const msPerBeat = sortedLines[i].msPerBeat || 500;
+                if (lastMsPerBeat > 0) {
+                    currentBeatOffset += (startMs - lastMs) / lastMsPerBeat;
+                }
+                lastMs = startMs;
+                lastMsPerBeat = msPerBeat;
+                timingSegments.push({
+                    segmentId: `seg-${i}`,
+                    startMs,
+                    bpm: 60000 / msPerBeat,
+                    beatOffset: currentBeatOffset
+                });
+            }
+        }
+        if (timingSegments.length === 0) {
+            timingSegments.push({ segmentId: 'fallback', startMs: 0, bpm: 120, beatOffset: 0 });
+        }
+
+        return track.clips.some(c => {
+            const isNonDestructive = (c.sourceAssetId !== undefined);
+            if (isNonDestructive) {
+                const clipStartMs = convertBeatToMs(c.timelineStartBeat, timingSegments);
+                const clipEndMs = convertBeatToMs(c.timelineEndBeat, timingSegments);
+                return timeMs >= clipStartMs && timeMs <= clipEndMs;
+            } else {
+                return timeMs >= c.startTimeMs && timeMs <= c.endTimeMs;
+            }
+        });
+    }
+
     if (!track.sourceAsset || !track.sourceAsset.hitObjects || track.sourceAsset.hitObjects.length === 0) {
         return false;
     }
     
-    const beatLengthMs = (track.sourceAsset.finalTimingPoints && track.sourceAsset.finalTimingPoints.length > 0) 
-        ? track.sourceAsset.finalTimingPoints[0].beatLength 
-        : 500;
-        
     const firstObj = track.sourceAsset.hitObjects[0];
-    const minTime = firstObj.originalTimeMs || (firstObj.beat * beatLengthMs);
+    const minTime = firstObj.originalTimeMs || 0;
     
     let maxTime = minTime;
     track.sourceAsset.hitObjects.forEach(note => {
-        const startTime = note.originalTimeMs || (note.beat * beatLengthMs);
-        let endTime = startTime;
-        if (note.type === 'slider' && note.sliderData && note.sliderData.durationBeats) {
-            const durationMs = note.sliderData.durationBeats * beatLengthMs;
-            endTime = startTime + durationMs;
-        } else if (note.type === 'spinner' && note.spinnerData) {
-            const durationMs = note.spinnerData.durationBeats * beatLengthMs;
-            endTime = startTime + durationMs;
-        }
-        if (endTime > maxTime) {
-            maxTime = endTime;
+        const times = getNoteTimes(note, track);
+        if (times.endTime > maxTime) {
+            maxTime = times.endTime;
         }
     });
     
@@ -47,18 +79,33 @@ function trackHasClipAt(track, timeMs) {
 }
 
 /**
- * Calculates mathematically balanced viewport bounds to keep the preview screen a perfect square regardless of responsive resizing
+ * Calculates mathematically balanced viewport bounds to keep the preview screen a perfect 4:3 aspect ratio
+ * matching the official osu! playfield coordinate space (512x384).
  * @param {number} windowWidth 
  * @param {number} windowHeight 
  * @param {number} topOffset 
  * @param {number} bottomOffset 
  * @param {number} padding 
- * @returns {number} 
+ * @returns {{width: number, height: number}} 
  */
-function calculateSquareSize(windowWidth, windowHeight, topOffset, bottomOffset, padding) {
+function calculatePlayfieldSize(windowWidth, windowHeight, topOffset, bottomOffset, padding) {
     const availableWidth = windowWidth - (padding * 2);
     const availableHeight = windowHeight - topOffset - bottomOffset - (padding * 2);
-    return Math.max(0, Math.min(availableWidth, availableHeight));
+
+    // osu! aspect ratio is 4:3
+    // W / H = 4 / 3 => W = H * 4 / 3
+    let height = availableHeight;
+    let width = height * 4 / 3;
+
+    if (width > availableWidth) {
+        width = availableWidth;
+        height = width * 3 / 4;
+    }
+
+    return {
+        width: Math.max(0, width),
+        height: Math.max(0, height)
+    };
 }
 
 /**
@@ -77,7 +124,7 @@ function updateCanvasSize() {
     // The canvas area is between the menu bar and the divider
     const availableHeight = dividerTop - menuBarHeight;
 
-    const newSize = calculateSquareSize(
+    const size = calculatePlayfieldSize(
         window.innerWidth,
         window.innerHeight,
         menuBarHeight,
@@ -85,8 +132,8 @@ function updateCanvasSize() {
         padding
     );
 
-    canvas.width = newSize;
-    canvas.height = newSize;
+    canvas.width = size.width;
+    canvas.height = size.height;
 }
 
 /**
@@ -101,6 +148,59 @@ function drawCanvas() {
     drawGrid(ctx, canvas.width, canvas.height);
     
     drawHitObjects(ctx, canvas);
+}
+
+/**
+ * Calculates the current interpolated coordinates of a slider ball along its path.
+ * @param {Object} note 
+ * @param {number} currentTimeMs 
+ * @param {number} startTime 
+ * @param {number} endTime 
+ * @returns {{x: number, y: number}}
+ */
+function getSliderBallPosition(note, currentTimeMs, startTime, endTime) {
+    if (!note.sliderData || !note.sliderData.bakedPath || note.sliderData.bakedPath.length === 0) {
+        return { x: note.x, y: note.y };
+    }
+    const durationMs = endTime - startTime;
+    if (durationMs <= 0) {
+        return { x: note.x, y: note.y };
+    }
+
+    const progress = Math.max(0, Math.min(1, (currentTimeMs - startTime) / durationMs));
+    const slides = note.sliderData.slides || 1;
+    
+    const scaledProgress = progress * slides;
+    const slideIndex = Math.floor(scaledProgress);
+    const slideProgress = scaledProgress % 1;
+    
+    // If slideIndex is odd, the ball is traveling backwards
+    const isGoingBackwards = (slideIndex % 2 === 1);
+    const targetFraction = isGoingBackwards ? (1 - slideProgress) : slideProgress;
+    
+    const pixelLength = note.sliderData.pixelLength || 100;
+    const targetDist = targetFraction * pixelLength;
+    
+    const bakedPath = note.sliderData.bakedPath;
+    if (bakedPath.length === 1) return bakedPath[0];
+    if (targetDist <= bakedPath[0].dist) return bakedPath[0];
+    if (targetDist >= bakedPath[bakedPath.length - 1].dist) return bakedPath[bakedPath.length - 1];
+
+    for (let i = 0; i < bakedPath.length - 1; i++) {
+        const p1 = bakedPath[i];
+        const p2 = bakedPath[i + 1];
+        if (targetDist >= p1.dist && targetDist <= p2.dist) {
+            const range = p2.dist - p1.dist;
+            if (range === 0) return p1;
+            const t = (targetDist - p1.dist) / range;
+            return {
+                x: p1.x + (p2.x - p1.x) * t,
+                y: p1.y + (p2.y - p1.y) * t
+            };
+        }
+    }
+    
+    return bakedPath[bakedPath.length - 1];
 }
 
 /**
@@ -167,29 +267,86 @@ function drawHitObjects(ctx, canvas) {
     }
 
     tracksToRender.forEach(track => {
-        if (!track.sourceAsset || !track.sourceAsset.hitObjects) return;
-
-        // Try to get beat length from timing points if possible, default to 500ms
-        const beatLengthMs = (track.sourceAsset.finalTimingPoints && track.sourceAsset.finalTimingPoints.length > 0) 
-            ? track.sourceAsset.finalTimingPoints[0].beatLength 
-            : 500;
-
-        track.sourceAsset.hitObjects.forEach(note => {
-            const startTime = note.originalTimeMs || (note.beat * beatLengthMs); // Fallback to beat calculation if undefined
-            let endTime = startTime;
-            
-            if (note.type === 'slider' && note.sliderData && note.sliderData.durationBeats) {
-                const durationMs = note.sliderData.durationBeats * beatLengthMs;
-                endTime = startTime + durationMs;
-            } else if (note.type === 'spinner' && note.spinnerData) {
-                 const durationMs = note.spinnerData.durationBeats * beatLengthMs;
-                 endTime = startTime + durationMs;
+        // Build timing segments for master track (if we need to project)
+        let timingSegments = [];
+        const timingAsset = (sharedState.sourceAssets && sharedState.selectedTimingSourceAssetId) 
+            ? sharedState.sourceAssets[sharedState.selectedTimingSourceAssetId] : null;
+        if (timingAsset && timingAsset.timingPoints) {
+            const uninheritedPoints = timingAsset.timingPoints.filter(tp => tp.uninherited);
+            const sortedLines = [...uninheritedPoints].sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
+            let currentBeatOffset = 0;
+            let lastMs = 0;
+            let lastMsPerBeat = 0;
+            for (let i = 0; i < sortedLines.length; i++) {
+                const startMs = sortedLines[i].timeMs || 0;
+                const msPerBeat = sortedLines[i].msPerBeat || 500;
+                if (lastMsPerBeat > 0) {
+                    currentBeatOffset += (startMs - lastMs) / lastMsPerBeat;
+                }
+                lastMs = startMs;
+                lastMsPerBeat = msPerBeat;
+                timingSegments.push({
+                    segmentId: `seg-${i}`,
+                    startMs,
+                    bpm: 60000 / msPerBeat,
+                    beatOffset: currentBeatOffset
+                });
             }
+        }
+        if (timingSegments.length === 0) {
+            timingSegments.push({ segmentId: 'fallback', startMs: 0, bpm: 120, beatOffset: 0 });
+        }
 
-            if (currentTimeMs >= startTime - AR_TIME && currentTimeMs <= endTime + 150) {
-                activeObjects.push({ note, track, startTime, endTime });
-            }
-        });
+        if (track.clips && track.clips.length > 0) {
+            track.clips.forEach(clip => {
+                const isNonDestructive = (clip.sourceAssetId !== undefined);
+                if (isNonDestructive) {
+                    const sourceAsset = sharedState.sourceAssets ? sharedState.sourceAssets[clip.sourceAssetId] : null;
+                    if (sourceAsset && sourceAsset.hitObjects) {
+                        sourceAsset.hitObjects.forEach(origNote => {
+                            const projected = projectObjectToMaster(origNote, clip, timingSegments);
+                            if (!projected) return;
+                            
+                            const noteStartMs = projected.timeMs;
+                            let noteEndMs = noteStartMs;
+                            
+                            if (origNote.type === 'slider' && origNote.sliderData) {
+                                const durationBeats = origNote.sliderData.durationBeats || 4;
+                                noteEndMs = convertBeatToMs(projected.beat + durationBeats, timingSegments);
+                            } else if (origNote.type === 'spinner' && origNote.spinnerData) {
+                                const durationBeats = origNote.spinnerData.durationBeats || 4;
+                                noteEndMs = convertBeatToMs(projected.beat + durationBeats, timingSegments);
+                            }
+
+                            if (currentTimeMs >= noteStartMs - AR_TIME && currentTimeMs <= noteEndMs + 150) {
+                                // Clone the note and update its coords so it draws at the projected spot
+                                const noteClone = { ...origNote, x: projected.x, y: projected.y };
+                                activeObjects.push({ note: noteClone, track, startTime: noteStartMs, endTime: noteEndMs });
+                            }
+                        });
+                    }
+                } else {
+                    // Legacy local clip
+                    if (!track.sourceAsset || !track.sourceAsset.hitObjects) return;
+                    track.sourceAsset.hitObjects.forEach(note => {
+                        if (clip.ownedObjectIds && clip.ownedObjectIds.includes(note.id)) {
+                            const { startTime, endTime } = getNoteTimes(note, track);
+                            if (currentTimeMs >= startTime - AR_TIME && currentTimeMs <= endTime + 150) {
+                                activeObjects.push({ note, track, startTime, endTime });
+                            }
+                        }
+                    });
+                }
+            });
+        } else if (track.sourceAsset && track.sourceAsset.hitObjects) {
+            // Track with no clips but has objects directly
+            track.sourceAsset.hitObjects.forEach(note => {
+                const { startTime, endTime } = getNoteTimes(note, track);
+                if (currentTimeMs >= startTime - AR_TIME && currentTimeMs <= endTime + 150) {
+                    activeObjects.push({ note, track, startTime, endTime });
+                }
+            });
+        }
     });
 
     // Sort descending by startTime so earlier objects are drawn ON TOP of later ones
@@ -199,6 +356,11 @@ function drawHitObjects(ctx, canvas) {
         const { note, startTime, endTime } = obj;
         const color = DEFAULT_COMBO_COLORS[(note.comboNumber || 0) % DEFAULT_COMBO_COLORS.length];
         const rgb = `${color.r},${color.g},${color.b}`;
+
+        const isHighlighted = !!(sharedState.highlightSelection &&
+            sharedState.highlightSelection.trackId === obj.track.id &&
+            startTime >= sharedState.highlightSelection.startMs &&
+            startTime <= sharedState.highlightSelection.endMs);
 
         let alpha = 1;
         if (currentTimeMs < startTime) {
@@ -212,13 +374,26 @@ function drawHitObjects(ctx, canvas) {
 
         ctx.globalAlpha = alpha;
 
+        // Draw glowing halo for highlighted objects
+        if (isHighlighted && (note.type === 'circle' || note.type === 'slider')) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(tx(note.x), ty(note.y), CIRCLE_RADIUS * 1.35, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ff66aa';
+            ctx.lineWidth = 4 * scale;
+            ctx.shadowColor = '#ff66aa';
+            ctx.shadowBlur = 15;
+            ctx.stroke();
+            ctx.restore();
+        }
+
         if (note.type === 'slider' && note.sliderData && note.sliderData.bakedPath) {
-            drawSmoothSlider(ctx, note, tx, ty, CIRCLE_RADIUS * 2, rgb);
+            drawSmoothSlider(ctx, note, tx, ty, CIRCLE_RADIUS * 2, rgb, isHighlighted);
         } else if (note.type === 'spinner') {
             ctx.beginPath();
             ctx.arc(tx(256), ty(192), CIRCLE_RADIUS * 3, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(${rgb}, 0.5)`;
-            ctx.lineWidth = 4;
+            ctx.strokeStyle = isHighlighted ? 'rgba(255, 102, 170, 0.8)' : `rgba(${rgb}, 0.5)`;
+            ctx.lineWidth = isHighlighted ? 6 : 4;
             ctx.stroke();
         }
 
@@ -229,8 +404,8 @@ function drawHitObjects(ctx, canvas) {
                 const approachScale = 1 + 2 * (1 - (currentTimeMs - (startTime - AR_TIME)) / AR_TIME);
                 ctx.beginPath();
                 ctx.arc(tx(note.x), ty(note.y), CIRCLE_RADIUS * approachScale, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgb(${rgb})`;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = isHighlighted ? '#ff66aa' : `rgb(${rgb})`;
+                ctx.lineWidth = isHighlighted ? 3 : 2;
                 ctx.stroke();
             }
 
@@ -241,7 +416,51 @@ function drawHitObjects(ctx, canvas) {
             ctx.fill();
 
             ctx.lineWidth = 3;
-            ctx.strokeStyle = 'white';
+            ctx.strokeStyle = isHighlighted ? '#ff66aa' : 'white';
+            ctx.stroke();
+        }
+
+        // Draw moving slider ball and follow circle if active
+        if (note.type === 'slider' && currentTimeMs >= startTime && currentTimeMs <= endTime) {
+            const ballPos = getSliderBallPosition(note, currentTimeMs, startTime, endTime);
+            const bx = tx(ballPos.x);
+            const by = ty(ballPos.y);
+
+            // 1. Draw slider follow circle (glowing outer ring)
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(bx, by, CIRCLE_RADIUS * 1.7, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 4 * scale;
+            ctx.shadowColor = '#ff66aa';
+            ctx.shadowBlur = 10;
+            ctx.stroke();
+            ctx.restore();
+
+            // Secondary subtle inner ring
+            ctx.beginPath();
+            ctx.arc(bx, by, CIRCLE_RADIUS * 1.5, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(${rgb}, 0.35)`;
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            // 2. Draw slider ball body
+            ctx.beginPath();
+            ctx.arc(bx, by, CIRCLE_RADIUS * 0.95, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(${rgb})`;
+            ctx.fill();
+
+            // Draw inner white core of the slider ball
+            ctx.beginPath();
+            ctx.arc(bx, by, CIRCLE_RADIUS * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Outer ring of the slider ball itself
+            ctx.beginPath();
+            ctx.arc(bx, by, CIRCLE_RADIUS * 0.95, 0, Math.PI * 2);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3 * scale;
             ctx.stroke();
         }
     });
@@ -252,7 +471,7 @@ function drawHitObjects(ctx, canvas) {
 /**
  * Procedurally generates smooth slider bodies using mathematical layered gradients
  */
-function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb) {
+function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb, isHighlighted) {
     if (!window.sliderScratch) {
         window.sliderScratch = document.createElement('canvas');
         window.sliderCtx = window.sliderScratch.getContext('2d');
@@ -277,10 +496,10 @@ function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb) {
     }
 
     const bodyWidth = trackDiam * 0.82;
-    const borderRgb = '255,255,255';
+    const borderRgb = isHighlighted ? '255, 102, 170' : '255,255,255';
     
     // 1. Outer border
-    sCtx.lineWidth = trackDiam;
+    sCtx.lineWidth = isHighlighted ? trackDiam * 1.2 : trackDiam;
     sCtx.strokeStyle = `rgb(${borderRgb})`;
     sCtx.stroke(path);
 
@@ -333,25 +552,48 @@ function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb) {
  * @param {number} height 
  */
 function drawGrid(ctx, width, height) {
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 1;
-    const gridSize = 20;
-    const stepX = width / gridSize;
-    const stepY = height / gridSize;
+    // Grid spacing (step) is determined solely by the vertical distance (height)
+    // We divide the vertical height into 12 segments (384 / 12 = 32 osu!px per grid cell).
+    const step = height / 12;
     
-    for (let i = 0; i <= gridSize; i++) {
-        const x = i * stepX;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    
+    // Draw vertical columns based on step size
+    const numCols = Math.round(width / step);
+    for (let i = 0; i <= numCols; i++) {
+        const x = i * step;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
-        
-        const y = i * stepY;
+    }
+    
+    // Draw horizontal rows based on step size (exactly 12 rows)
+    const numRows = 12;
+    for (let i = 0; i <= numRows; i++) {
+        const y = i * step;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);
         ctx.stroke();
     }
+
+    // Draw center crosshairs/axes with a slightly brighter opacity for professional styling
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    
+    // Vertical center axis
+    ctx.beginPath();
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.stroke();
+
+    // Horizontal center axis
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
 }
 
-export { calculateSquareSize, updateCanvasSize, drawCanvas, drawGrid };
+export { calculatePlayfieldSize, updateCanvasSize, drawCanvas, drawGrid };

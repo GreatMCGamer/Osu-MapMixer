@@ -187,6 +187,7 @@ export function parseOsuToSourceAsset(osuContent, fileName) {
     // Prepare final contract timing points
     const finalTimingPoints = parsedTimingPoints.map(tp => ({
         beat: getBeatAtTime(tp.time),
+        timeMs: tp.time,
         msPerBeat: tp.uninherited ? tp.msPerBeat : 0, 
         meter: tp.meter,
         sampleSet: tp.sampleSet,

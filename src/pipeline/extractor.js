@@ -213,6 +213,10 @@ function setupURLInputListeners() {
             if (e.key === 'Enter') {
                 processInputText(menuUrlInput.value);
                 menuUrlInput.value = '';
+                const importDropdown = document.getElementById('importDropdown');
+                if (importDropdown) {
+                    importDropdown.classList.remove('active');
+                }
             }
         });
     }

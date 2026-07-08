@@ -1,0 +1,99 @@
+
+/* ==========================================
+   TRACKS CONTAINER
+   ========================================== */
+.tracks-container {
+    position: fixed;
+    top: calc(var(--divider-top, 66.66%) + 4px);
+    left: 0;
+    right: 0;
+    bottom: calc(max(20px, calc(100vh / 48)) * 2 / 3);
+    display: flex;
+    flex-direction: column;
+    padding: 2px;
+    z-index: 10;
+    overflow-y: auto;
+}
+
+.tracks-manager {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.master-tracks-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    order: 0;
+}
+
+.normal-tracks-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    order: 1;
+}
+
+/* Base individual track skeleton */
+.track {
+    position: relative;
+    height: 60px;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    margin-bottom: 2px;
+    border-radius: 4px;
+    background-color: #111;
+    overflow: hidden;
+    border: 1px solid #222;
+}
+
+.track-header {
+    width: 200px;
+    min-width: 200px;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #ccc;
+    border-right: 1px solid #333;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.track-lane {
+    flex: 1;
+    position: relative;
+    background-color: rgba(255, 255, 255, 0.01);
+    overflow: hidden;
+}
+
+/* Shared Highlights */
+.track.highlighted {
+    border: 1.5px solid #ff66aa;
+    box-shadow: 0 0 10px rgba(255, 102, 170, 0.4);
+}
+
+.track.highlighted .track-header {
+    background-color: rgba(255, 102, 170, 0.15);
+    color: #ff66aa;
+    border-right: 1px solid rgba(255, 102, 170, 0.3);
+}
+
+.track-highlight-star {
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.track-highlight-star:hover {
+    transform: scale(1.2);
+}

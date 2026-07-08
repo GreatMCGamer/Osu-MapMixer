@@ -1,0 +1,83 @@
+
+/* ==========================================
+   UTILITY BAR (Top Controls)
+   ========================================== */
+.tracks-controls-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 12px;
+    background-color: #111;
+    border-bottom: 1px solid #222;
+    user-select: none;
+    order: -1; /* Keep always at the very top of tracks container */
+}
+
+.mp3-dropdown-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #aaa;
+}
+
+.mp3-dropdown-label {
+    font-weight: 600;
+}
+
+.mp3-select {
+    background-color: #222;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+    pointer-events: auto;
+    user-select: auto;
+}
+
+.mp3-select:hover {
+    border-color: #666;
+}
+
+/* Icons and buttons */
+.track-icon {
+    cursor: pointer;
+    margin-right: 8px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+}
+
+.track-icon:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.add-master-icon {
+    color: #4caf50; /* Green */
+}
+
+.remove-master-icon {
+    color: #f44336; /* Red */
+}
+
+.scissor-icon {
+    color: #ff66aa; /* Theme accent color, hot pink */
+    font-size: 13px;
+}
+
+.scissor-icon:hover {
+    background-color: rgba(255, 102, 170, 0.25) !important;
+    box-shadow: 0 0 6px rgba(255, 102, 170, 0.5);
+}

@@ -1,0 +1,80 @@
+
+/* ==========================================
+   TIMELINE BAR
+   ========================================== */
+.track.timeline-bar-track {
+    height: 32px !important;
+    background-color: #141416;
+    border-color: #2a2a2e;
+    margin-bottom: 4px;
+    user-select: none;
+}
+
+.track.timeline-bar-track .track-header {
+    font-size: 10px;
+    color: #ff66aa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-right: 1px solid #2a2a2e;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+}
+
+.track-timeline-content {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    height: 100%;
+}
+
+/* Playhead indicators */
+.playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #ff3366;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 0 8px #ff3366;
+}
+
+/* Timing Grid & Beat lines */
+.bpm-beat-line {
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 1;
+}
+
+.bpm-beat-line.major-beat {
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.timing-red-line {
+    border-left: 1.5px solid rgba(255, 68, 68, 0.55);
+    z-index: 2;
+}
+
+.timing-line-label {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 8px;
+    font-family: 'JetBrains Mono', monospace, sans-serif;
+    font-weight: 700;
+    padding: 1px 3px;
+    border-radius: 2px;
+    white-space: nowrap;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.timing-red-line .timing-line-label {
+    background-color: rgba(255, 68, 68, 0.9);
+    color: #fff;
+    box-shadow: 0 0 4px rgba(255, 68, 68, 0.4);
+}
