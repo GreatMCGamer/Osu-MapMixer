@@ -3,9 +3,9 @@ name: Build Vite App
 # 1. When should this run?
 on:
   push:
-    branches: [ "main" ] # Runs every time you push to the main branch
+    branches: [ "master" ] # Runs every time you push to the main branch
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 # 2. What jobs should it run?
 jobs:
