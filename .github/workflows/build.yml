@@ -1,0 +1,40 @@
+name: Build Vite App
+
+# 1. When should this run?
+on:
+  push:
+    branches: [ "main" ] # Runs every time you push to the main branch
+  pull_request:
+    branches: [ "main" ]
+
+# 2. What jobs should it run?
+jobs:
+  build:
+    runs-on: ubuntu-latest # Runs in a secure, isolated Linux virtual machine
+
+    steps:
+    # Step 1: Pull your code into the virtual machine
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Step 2: Set up Node.js in the virtual machine
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm' # Caches your npm dependencies so builds run faster next time
+
+    # Step 3: Install dependencies (securely!)
+    - name: Install dependencies
+      run: npm ci # "Clean Install" - faster and safer for automated environments
+
+    # Step 4: Run the Vite build command
+    - name: Build the project
+      run: npm run build
+
+    # Step 5: Save the built files so your server can access them
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: production-files
+        path: dist/ # Vite outputs your built files to the 'dist' folder
