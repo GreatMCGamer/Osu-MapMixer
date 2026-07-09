@@ -6,6 +6,7 @@ import { triggerDirectoryPicker } from '../pipeline/file-ingestor.js';
 import { handleOszFile } from '../pipeline/extractor.js';
 import { showLoader, hideLoader, showToast } from '../engine/utils.js';
 import { sharedState } from '../core/shared-state.js';
+import { exportProjectOsu } from '../export/exporter.js';
 
 /**
  * Binds actions to navigation links inside the top header
@@ -26,6 +27,7 @@ function setupMenuListeners() {
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             console.log("Export triggered.");
+            exportProjectOsu();
         });
     }
 

@@ -1,5 +1,6 @@
 import { sharedState, getHighlightedTrackId, getActiveDifficulty } from '../core/shared-state.js';
 import { getNoteTimes, projectObjectToMaster, convertBeatToMs } from '../engine/track-utils.js';
+import { compilePreviewTrack } from '../engine/preview-compiler.js';
 
 /**
  * Main Beatmap Canvas Visualizer
@@ -13,73 +14,23 @@ const DEFAULT_COMBO_COLORS = [
     { r: 242, g: 24,  b: 57 }
 ];
 
-/**
- * Checks if a track contains a pattern clip active at a specific timestamp.
- */
-function trackHasClipAt(track, timeMs) {
-    if (track.clips && track.clips.length > 0) {
-        // Build timing segments for master track
-        let timingSegments = [];
-        const timingAsset = (sharedState.sourceAssets && sharedState.selectedTimingSourceAssetId) 
-            ? sharedState.sourceAssets[sharedState.selectedTimingSourceAssetId] : null;
-        if (timingAsset && timingAsset.timingPoints) {
-            const uninheritedPoints = timingAsset.timingPoints.filter(tp => tp.uninherited);
-            const sortedLines = [...uninheritedPoints].sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
-            let currentBeatOffset = 0;
-            let lastMs = 0;
-            let lastMsPerBeat = 0;
-            for (let i = 0; i < sortedLines.length; i++) {
-                const startMs = sortedLines[i].timeMs || 0;
-                const msPerBeat = sortedLines[i].msPerBeat || 500;
-                if (lastMsPerBeat > 0) {
-                    currentBeatOffset += (startMs - lastMs) / lastMsPerBeat;
-                }
-                lastMs = startMs;
-                lastMsPerBeat = msPerBeat;
-                timingSegments.push({
-                    segmentId: `seg-${i}`,
-                    startMs,
-                    bpm: 60000 / msPerBeat,
-                    beatOffset: currentBeatOffset
-                });
-            }
-        }
-        if (timingSegments.length === 0) {
-            timingSegments.push({ segmentId: 'fallback', startMs: 0, bpm: 120, beatOffset: 0 });
-        }
+let lastTracksStateStr = '';
 
-        return track.clips.some(c => {
-            const isNonDestructive = (c.sourceAssetId !== undefined);
-            if (isNonDestructive) {
-                const clipStartMs = convertBeatToMs(c.timelineStartBeat, timingSegments);
-                const clipEndMs = convertBeatToMs(c.timelineEndBeat, timingSegments);
-                return timeMs >= clipStartMs && timeMs <= clipEndMs;
-            } else {
-                return timeMs >= c.startTimeMs && timeMs <= c.endTimeMs;
-            }
-        });
+function checkPreviewDirty() {
+    const tracksSummary = sharedState.tracks.map(t => {
+        return `${t.id}-${t.type}-${t.clips ? t.clips.length : 0}-${t.clips ? t.clips.map(c => `${c.clipId}-${c.timelineStartBeat}-${c.timelineEndBeat}-${c.startTimeMs}-${c.endTimeMs}`).join(',') : ''}`;
+    }).join('|');
+    const stateStr = `${sharedState.highlightedTrackId}|${sharedState.selectedTimingSourceAssetId}|${tracksSummary}`;
+    if (stateStr !== lastTracksStateStr) {
+        lastTracksStateStr = stateStr;
+        return true;
     }
-
-    if (!track.sourceAsset || !track.sourceAsset.hitObjects || track.sourceAsset.hitObjects.length === 0) {
-        return false;
-    }
-    
-    const firstObj = track.sourceAsset.hitObjects[0];
-    const minTime = firstObj.originalTimeMs || 0;
-    
-    let maxTime = minTime;
-    track.sourceAsset.hitObjects.forEach(note => {
-        const times = getNoteTimes(note, track);
-        if (times.endTime > maxTime) {
-            maxTime = times.endTime;
-        }
-    });
-    
-    return timeMs >= minTime && timeMs <= maxTime;
+    return false;
 }
 
 /**
  * Calculates mathematically balanced viewport bounds to keep the preview screen a perfect 4:3 aspect ratio
+
  * matching the official osu! playfield coordinate space (512x384).
  * @param {number} windowWidth 
  * @param {number} windowHeight 
@@ -235,126 +186,32 @@ function drawHitObjects(ctx, canvas) {
         AR_TIME = 1200 - 750 * (arVal - 5) / 5;
     }
 
-    let activeObjects = [];
-
-    // Determine which tracks are allowed to render at the current timestamp based on highlighing
-    let tracksToRender = [];
-    const activeTrackId = getHighlightedTrackId();
-
-    if (activeTrackId) {
-        const activeTrack = sharedState.tracks.find(t => t.id === activeTrackId);
-        if (activeTrack) {
-            if (activeTrack.type === 'normal') {
-                // If a normal track is highlighted, only render that normal track
-                tracksToRender = [activeTrack];
-            } else {
-                // If a master track is highlighted, check if it has a clip at the playhead time
-                const masterHasClip = trackHasClipAt(activeTrack, currentTimeMs);
-                if (masterHasClip) {
-                    tracksToRender = [activeTrack];
-                } else {
-                    // Fall back to filling missing portion with normal tracks
-                    // "The beatmaps/patternclips will fully hide any track under neath them. (0 transparency)"
-                    // Search normal tracks in layout order (their order in the sharedState.tracks list)
-                    const normalTracks = sharedState.tracks.filter(t => t.type === 'normal');
-                    const fillingNormalTrack = normalTracks.find(t => trackHasClipAt(t, currentTimeMs));
-                    if (fillingNormalTrack) {
-                        tracksToRender = [fillingNormalTrack];
-                    }
-                }
-            }
-        }
+    // Compile active preview objects onto the ghost preview track if state changed
+    if (checkPreviewDirty() || !sharedState.ghostPreviewTrack) {
+        compilePreviewTrack();
     }
 
-    tracksToRender.forEach(track => {
-        // Build timing segments for master track (if we need to project)
-        let timingSegments = [];
-        const timingAsset = (sharedState.sourceAssets && sharedState.selectedTimingSourceAssetId) 
-            ? sharedState.sourceAssets[sharedState.selectedTimingSourceAssetId] : null;
-        if (timingAsset && timingAsset.timingPoints) {
-            const uninheritedPoints = timingAsset.timingPoints.filter(tp => tp.uninherited);
-            const sortedLines = [...uninheritedPoints].sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
-            let currentBeatOffset = 0;
-            let lastMs = 0;
-            let lastMsPerBeat = 0;
-            for (let i = 0; i < sortedLines.length; i++) {
-                const startMs = sortedLines[i].timeMs || 0;
-                const msPerBeat = sortedLines[i].msPerBeat || 500;
-                if (lastMsPerBeat > 0) {
-                    currentBeatOffset += (startMs - lastMs) / lastMsPerBeat;
-                }
-                lastMs = startMs;
-                lastMsPerBeat = msPerBeat;
-                timingSegments.push({
-                    segmentId: `seg-${i}`,
-                    startMs,
-                    bpm: 60000 / msPerBeat,
-                    beatOffset: currentBeatOffset
+    // Retrieve active objects from the ghost preview track, filtering by AR_TIME
+    const activeObjects = [];
+    if (sharedState.ghostPreviewTrack && sharedState.ghostPreviewTrack.sourceAsset && sharedState.ghostPreviewTrack.sourceAsset.hitObjects) {
+        sharedState.ghostPreviewTrack.sourceAsset.hitObjects.forEach(obj => {
+            if (currentTimeMs >= obj.startTime - AR_TIME && currentTimeMs <= obj.endTime + 150) {
+                activeObjects.push({
+                    note: obj,
+                    track: sharedState.tracks.find(t => t.id === obj.trackId) || { id: obj.trackId },
+                    startTime: obj.startTime,
+                    endTime: obj.endTime
                 });
             }
-        }
-        if (timingSegments.length === 0) {
-            timingSegments.push({ segmentId: 'fallback', startMs: 0, bpm: 120, beatOffset: 0 });
-        }
-
-        if (track.clips && track.clips.length > 0) {
-            track.clips.forEach(clip => {
-                const isNonDestructive = (clip.sourceAssetId !== undefined);
-                if (isNonDestructive) {
-                    const sourceAsset = sharedState.sourceAssets ? sharedState.sourceAssets[clip.sourceAssetId] : null;
-                    if (sourceAsset && sourceAsset.hitObjects) {
-                        sourceAsset.hitObjects.forEach(origNote => {
-                            const projected = projectObjectToMaster(origNote, clip, timingSegments);
-                            if (!projected) return;
-                            
-                            const noteStartMs = projected.timeMs;
-                            let noteEndMs = noteStartMs;
-                            
-                            if (origNote.type === 'slider' && origNote.sliderData) {
-                                const durationBeats = origNote.sliderData.durationBeats || 4;
-                                noteEndMs = convertBeatToMs(projected.beat + durationBeats, timingSegments);
-                            } else if (origNote.type === 'spinner' && origNote.spinnerData) {
-                                const durationBeats = origNote.spinnerData.durationBeats || 4;
-                                noteEndMs = convertBeatToMs(projected.beat + durationBeats, timingSegments);
-                            }
-
-                            if (currentTimeMs >= noteStartMs - AR_TIME && currentTimeMs <= noteEndMs + 150) {
-                                // Clone the note and update its coords so it draws at the projected spot
-                                const noteClone = { ...origNote, x: projected.x, y: projected.y };
-                                activeObjects.push({ note: noteClone, track, startTime: noteStartMs, endTime: noteEndMs });
-                            }
-                        });
-                    }
-                } else {
-                    // Legacy local clip
-                    if (!track.sourceAsset || !track.sourceAsset.hitObjects) return;
-                    track.sourceAsset.hitObjects.forEach(note => {
-                        if (clip.ownedObjectIds && clip.ownedObjectIds.includes(note.id)) {
-                            const { startTime, endTime } = getNoteTimes(note, track);
-                            if (currentTimeMs >= startTime - AR_TIME && currentTimeMs <= endTime + 150) {
-                                activeObjects.push({ note, track, startTime, endTime });
-                            }
-                        }
-                    });
-                }
-            });
-        } else if (track.sourceAsset && track.sourceAsset.hitObjects) {
-            // Track with no clips but has objects directly
-            track.sourceAsset.hitObjects.forEach(note => {
-                const { startTime, endTime } = getNoteTimes(note, track);
-                if (currentTimeMs >= startTime - AR_TIME && currentTimeMs <= endTime + 150) {
-                    activeObjects.push({ note, track, startTime, endTime });
-                }
-            });
-        }
-    });
+        });
+    }
 
     // Sort descending by startTime so earlier objects are drawn ON TOP of later ones
     activeObjects.sort((a, b) => b.startTime - a.startTime);
 
     activeObjects.forEach(obj => {
         const { note, startTime, endTime } = obj;
-        const color = DEFAULT_COMBO_COLORS[(note.comboNumber || 0) % DEFAULT_COMBO_COLORS.length];
+        const color = DEFAULT_COMBO_COLORS[(note.comboColorIndex !== undefined ? note.comboColorIndex : (note.comboNumber || 0)) % DEFAULT_COMBO_COLORS.length];
         const rgb = `${color.r},${color.g},${color.b}`;
 
         const isHighlighted = !!(sharedState.highlightSelection &&
@@ -418,6 +275,14 @@ function drawHitObjects(ctx, canvas) {
             ctx.lineWidth = 3;
             ctx.strokeStyle = isHighlighted ? '#ff66aa' : 'white';
             ctx.stroke();
+
+            // Draw combo number
+            const comboNum = note.comboNumber !== undefined ? note.comboNumber : 1;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.round(CIRCLE_RADIUS * 0.8)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(comboNum, tx(note.x), ty(note.y));
         }
 
         // Draw moving slider ball and follow circle if active
