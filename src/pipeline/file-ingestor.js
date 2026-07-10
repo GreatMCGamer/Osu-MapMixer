@@ -7,6 +7,53 @@ import { handleOszFile, loadMp3File } from './extractor.js';
 import { processSingleOsuFile } from './ingestion-handler.js';
 
 /**
+ * Universal helper to extract a standard File object from multiple API entry shapes:
+ * 1. FileSystemFileHandle (Modern File System Access API)
+ * 2. FileSystemFileEntry (Drag and Drop webkitGetAsEntry API)
+ * 3. Standard File object
+ */
+async function getFileFromAny(fileOrHandleOrEntry) {
+    if (!fileOrHandleOrEntry) return null;
+    
+    // 1. FileSystemFileHandle
+    if (typeof fileOrHandleOrEntry.getFile === 'function') {
+        return await fileOrHandleOrEntry.getFile();
+    }
+    
+    // 2. FileSystemFileEntry
+    if (typeof fileOrHandleOrEntry.file === 'function') {
+        return await new Promise((resolve, reject) => {
+            fileOrHandleOrEntry.file(resolve, reject);
+        });
+    }
+    
+    // 3. Already a File/Blob object
+    return fileOrHandleOrEntry;
+}
+
+/**
+ * Iteratively reads all entries from a FileSystemDirectoryEntry to ensure robust listing of files.
+ */
+function readAllEntries(directoryEntry) {
+    const reader = directoryEntry.createReader();
+    const result = [];
+    
+    return new Promise((resolve, reject) => {
+        const read = () => {
+            reader.readEntries((entries) => {
+                if (entries.length === 0) {
+                    resolve(result);
+                } else {
+                    result.push(...entries);
+                    read();
+                }
+            }, reject);
+        };
+        read();
+    });
+}
+
+/**
  * Invokes modern browser directory selection windows and validates browser capability constraints
  */
 async function triggerDirectoryPicker() {
@@ -67,18 +114,19 @@ async function handleDirectory(dirHandle) {
 
 /**
  * Processes an individual .osu file
- * @param {FileSystemFileHandle} fileHandle 
+ * @param {FileSystemFileHandle|FileSystemFileEntry|File} fileOrHandle 
  * @param {string|null} packageContext
  */
-async function processOsuFile(fileHandle, packageContext = null) {
+async function processOsuFile(fileOrHandle, packageContext = null) {
+    const name = fileOrHandle ? (fileOrHandle.name || "unknown") : "unknown";
     try {
-        const file = await fileHandle.getFile();
+        const file = await getFileFromAny(fileOrHandle);
+        if (!file) throw new Error("Could not retrieve file object");
         const content = await file.text();
-        const fileName = file.name;
-        await processSingleOsuFile(fileName, content, packageContext);
+        await processSingleOsuFile(file.name || name, content, packageContext);
     } catch (error) {
-        console.error(`Failed to process file ${fileHandle.name}:`, error);
-        showToast(`Failed to process ${fileHandle.name}`, "error");
+        console.error(`Failed to process file ${name}:`, error);
+        showToast(`Failed to process ${name}`, "error");
     }
 }
 
@@ -99,33 +147,33 @@ async function processDraggedEntries(items) {
             if (entry) {
                 if (entry.isDirectory) {
                     console.log(`[Directory Entry]: ${entry.name}`);
-                    const reader = entry.createReader();
-                    await new Promise((resolve) => {
-                        reader.readEntries(async (entries) => {
-                            for (const subEntry of entries) {
-                                if (subEntry.isFile) {
-                                    const name = subEntry.name.toLowerCase();
-                                    if (name.endsWith('.osu')) {
-                                        console.log(`  [osu!] map: ${subEntry.name}`);
-                                        // Process the .osu file with our ingestion handler
-                                        await processOsuFile(subEntry, entry.name);
-                                        osuCount++;
-                                    } else if (name.endsWith('.mp3')) {
-                                        console.log(`  [Audio] track: ${subEntry.name}`);
-                                        try {
-                                            const file = await subEntry.getFile();
+                    try {
+                        const entries = await readAllEntries(entry);
+                        for (const subEntry of entries) {
+                            if (subEntry.isFile) {
+                                const name = subEntry.name.toLowerCase();
+                                if (name.endsWith('.osu')) {
+                                    console.log(`  [osu!] map: ${subEntry.name}`);
+                                    await processOsuFile(subEntry, entry.name);
+                                    osuCount++;
+                                } else if (name.endsWith('.mp3')) {
+                                    console.log(`  [Audio] track: ${subEntry.name}`);
+                                    try {
+                                        const file = await getFileFromAny(subEntry);
+                                        if (file) {
                                             const arrayBuffer = await file.arrayBuffer();
                                             loadMp3File(subEntry.name, arrayBuffer, entry.name);
                                             mp3Count++;
-                                        } catch (e) {
-                                            console.error("Error reading sub-entry MP3:", subEntry.name, e);
                                         }
+                                    } catch (e) {
+                                        console.error("Error reading sub-entry MP3:", subEntry.name, e);
                                     }
                                 }
                             }
-                            resolve();
-                        });
-                    });
+                        }
+                    } catch (dirErr) {
+                        console.error("Error reading directory entry:", entry.name, dirErr);
+                    }
                 } else if (entry.isFile) {
                     const file = item.getAsFile();
                     if (file) {
@@ -134,7 +182,6 @@ async function processDraggedEntries(items) {
                             await handleOszFile(file);
                         } else if (name.endsWith('.osu')) {
                             console.log(`  [osu!] map: ${file.name}`);
-                            // Process the .osu file with our ingestion handler
                             await processOsuFile(file);
                             osuCount++;
                         } else if (name.endsWith('.mp3')) {
@@ -158,7 +205,6 @@ async function processDraggedEntries(items) {
                     await handleOszFile(file);
                 } else if (name.endsWith('.osu')) {
                     console.log(`  [osu!] map: ${file.name}`);
-                    // Process the .osu file with our ingestion handler
                     await processOsuFile(file);
                     osuCount++;
                 } else if (name.endsWith('.mp3')) {
