@@ -1,194 +1,13 @@
-/**
- * Interactive Timeline Component (Master Track)
- * Governs interactions, render positioning, and playhead updates for the sequencing track
- */
-import { sharedState } from '../core/shared-state.js';
-import { drawCanvas } from '../ui/canvas.js';
-import { convertBeatToMs, convertMsToBeat } from './track-utils.js';
-
-function getTimingSegments() {
-    const timingAsset = (sharedState.sourceAssets && sharedState.selectedTimingSourceAssetId) 
-        ? sharedState.sourceAssets[sharedState.selectedTimingSourceAssetId] 
-        : null;
-        
-    let timingSegments = [];
-    if (timingAsset && timingAsset.timingPoints) {
-        const uninheritedPoints = timingAsset.timingPoints.filter(tp => tp.uninherited);
-        const sortedLines = [...uninheritedPoints].sort((a, b) => (a.timeMs || 0) - (b.timeMs || 0));
-        
-        let currentBeatOffset = 0;
-        let lastMs = 0;
-        let lastMsPerBeat = 0;
-        for (let i = 0; i < sortedLines.length; i++) {
-            const startMs = sortedLines[i].timeMs || 0;
-            const msPerBeat = sortedLines[i].msPerBeat || 500;
-            
-            if (lastMsPerBeat > 0) {
-                currentBeatOffset += (startMs - lastMs) / lastMsPerBeat;
-            }
-            
-            lastMs = startMs;
-            lastMsPerBeat = msPerBeat;
-            timingSegments.push({
-                segmentId: `seg-${i}`,
-                startMs,
-                bpm: 60000 / msPerBeat,
-                beatOffset: currentBeatOffset
-            });
-        }
-    }
-    if (timingSegments.length === 0) {
-        timingSegments.push({ segmentId: 'fallback', startMs: 0, bpm: 120, beatOffset: 0 });
-    }
-    return timingSegments;
-}
-
-function getClipTimeRange(clip, timingSegments) {
-    const isNonDestructive = (clip.sourceAssetId !== undefined);
-    let startMs, endMs;
-    if (isNonDestructive) {
-        startMs = convertBeatToMs(clip.timelineStartBeat, timingSegments);
-        endMs = convertBeatToMs(clip.timelineEndBeat, timingSegments);
-    } else {
-        startMs = clip.startTimeMs || 0;
-        endMs = clip.endTimeMs || 0;
-    }
-    return { startMs, endMs, duration: endMs - startMs };
-}
-
-/**
- * Updates the zoom amount indicator in the bottom status bar
- */
-export function updateBottomStatusBar() {
-    const t0 = performance.now();
-    const zoomBubble = document.getElementById('zoom-bubble');
-    const totalDuration = sharedState.selectedMp3 ? sharedState.selectedMp3.duration : 180.0;
-    if (zoomBubble) {
-        const visibleDuration = totalDuration / (sharedState.zoom || 1.0);
-        zoomBubble.innerText = `Visible: ${visibleDuration.toFixed(1)}s`;
-    }
-
-    const playheadBubble = document.getElementById('playhead-bubble');
-    if (playheadBubble) {
-        const playheadTime = sharedState.playheadPosition * totalDuration;
-        
-        const mins = Math.floor(playheadTime / 60);
-        const secs = Math.floor(playheadTime % 60);
-        const ms = Math.floor((playheadTime % 1) * 1000);
-        const timestampStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
-        
-        const totalMins = Math.floor(totalDuration / 60);
-        const totalSecs = Math.floor(totalDuration % 60);
-        const totalMs = Math.floor((totalDuration % 1) * 1000);
-        const totalStr = `${totalMins.toString().padStart(2, '0')}:${totalSecs.toString().padStart(2, '0')}.${totalMs.toString().padStart(3, '0')}`;
-        
-        playheadBubble.innerText = `Time: ${timestampStr} / ${totalStr}`;
-    }
-    if (sharedState.performanceTimings) {
-        sharedState.performanceTimings.statusBarUpdateMs = performance.now() - t0;
-    }
-}
-
-/**
- * Computes and updates the CSS positioning of the red playhead line based on the global state's playhead percentage
- */
-function drawPlayhead() {
-    const t0 = performance.now();
-    
-    // Get all track lanes actively from the document to avoid holding stale/detached elements
-    const t0_lane_query = performance.now();
-    const lanes = document.querySelectorAll('.track-lane');
-    const laneQueryMs = performance.now() - t0_lane_query;
-    
-    if (lanes.length === 0) return;
-    
-    // Read the offsetWidth of the first lane once (does not cause layout thrashing if no writes happened yet)
-    const laneWidth = lanes[0].offsetWidth;
-    if (laneWidth === 0) return; // Wait until container is laid out
-    
-    const zoom = sharedState.zoom || 1.0;
-    const totalTimelineWidth = laneWidth * zoom;
-    const scrollMax = Math.max(0, totalTimelineWidth - laneWidth);
-
-    // Playhead pixel position in the full zoomed timeline
-    const playheadX = sharedState.playheadPosition * totalTimelineWidth;
-
-    // Centering scroll calculation: ONLY when the track is playing!
-    let scrollLeft = sharedState.scrollLeft || 0;
-    if (sharedState.isPlaying) {
-        if (playheadX > laneWidth / 2) {
-            scrollLeft = Math.min(scrollMax, playheadX - laneWidth / 2);
-        } else {
-            scrollLeft = 0;
-        }
-        sharedState.scrollLeft = scrollLeft;
-    }
-
-    const t0_scroll = performance.now();
-    let playheadQueryTotal = 0;
-    
-    for (let i = 0; i < lanes.length; i++) {
-        const lane = lanes[i];
-        
-        // Use cached content element on the DOM element itself
-        let content = lane._cachedContent;
-        if (!content) {
-            content = lane.querySelector('.track-timeline-content');
-            lane._cachedContent = content;
-        }
-
-        if (content) {
-            // Only update DOM style width if the zoom has actually changed
-            if (lane._lastZoom !== zoom) {
-                lane._lastZoom = zoom;
-                content.style.width = `${zoom * 100}%`;
-            }
-            
-            const t0_pq = performance.now();
-            // Use cached playhead element on the DOM element itself
-            let playhead = lane._cachedPlayhead;
-            if (!playhead) {
-                playhead = content.querySelector('.playhead');
-                if (!playhead) {
-                    playhead = document.createElement('div');
-                    playhead.className = 'playhead';
-                    content.appendChild(playhead);
-                }
-                lane._cachedPlayhead = playhead;
-            }
-            playheadQueryTotal += performance.now() - t0_pq;
-            
-            // Update left style using % representation directly, which does not trigger style invalidation
-            const pctStr = `${(sharedState.playheadPosition * 100).toFixed(4)}%`;
-            if (playhead._lastLeft !== pctStr) {
-                playhead._lastLeft = pctStr;
-                playhead.style.left = pctStr;
-            }
-        }
-        
-        // Only write to scrollLeft if it actually changed, using cached value
-        if (lane._lastScrollLeft !== scrollLeft) {
-            lane.scrollLeft = scrollLeft;
-            lane._lastScrollLeft = scrollLeft;
-        }
-    }
-    
-    const laneScrollSyncMs = performance.now() - t0_scroll - playheadQueryTotal;
-
-    if (sharedState.performanceTimings) {
-        sharedState.performanceTimings.laneQueryMs = laneQueryMs;
-        sharedState.performanceTimings.playheadQueryMs = playheadQueryTotal;
-        sharedState.performanceTimings.laneScrollSyncMs = Math.max(0, laneScrollSyncMs);
-        sharedState.performanceTimings.playheadUpdateMs = performance.now() - t0;
-    }
-
-    updateBottomStatusBar();
-}
+import { sharedState } from '../../../core/shared-state.js';
+import { drawCanvas } from '../../../ui/canvas.js';
+import { convertBeatToMs, convertMsToBeat } from '../../track-utils/index.js';
+import { getTimingSegments, getClipTimeRange, updateBottomStatusBar } from './timeline-utils.js';
+import { drawPlayhead } from './playhead.js';
 
 /**
  * Listens for user clicks on the master track container to recalculate and seek the playback timeline's percentage
  */
-function setupTrackInteractions() {
+export function setupTrackInteractions() {
     const container = document.getElementById('tracks-container');
     if (!container) return;
     
@@ -295,7 +114,7 @@ function setupTrackInteractions() {
                     
                     isDragging = false;
                     
-                    import('./track-manager.js').then(m => m.renderTracks());
+                    import('../track-manager.js').then(m => m.renderTracks());
                     e.preventDefault();
                     e.stopPropagation();
                     return;
@@ -385,8 +204,8 @@ function setupTrackInteractions() {
                         };
                     }
                     
-                    import('./track-manager.js').then(m => m.renderTracks());
-                    import('../ui/canvas.js').then(m => m.drawCanvas());
+                    import('../track-manager.js').then(m => m.renderTracks());
+                    import('../../../ui/canvas.js').then(m => m.drawCanvas());
                 }
             }
             return;
@@ -402,7 +221,7 @@ function setupTrackInteractions() {
         };
 
         // Render tracks instantly to update the selection overlay and highlighted notes
-        import('./track-manager.js').then(m => m.renderTracks());
+        import('../track-manager.js').then(m => m.renderTracks());
     });
 
     // Mouseup to lock selection, seek playhead, or release clip
@@ -411,8 +230,8 @@ function setupTrackInteractions() {
             isDraggingClip = false;
             draggedClipTrackId = null;
             draggedClipId = null;
-            import('./track-manager.js').then(m => m.renderTracks());
-            import('../ui/canvas.js').then(m => m.drawCanvas());
+            import('../track-manager.js').then(m => m.renderTracks());
+            import('../../../ui/canvas.js').then(m => m.drawCanvas());
             return;
         }
 
@@ -439,7 +258,7 @@ function setupTrackInteractions() {
 
         dragTrackId = null;
 
-        import('./track-manager.js').then(m => m.renderTracks());
+        import('../track-manager.js').then(m => m.renderTracks());
     });
 
     // Setup capture scroll event listener for syncing scroll across lanes
@@ -526,7 +345,7 @@ function setupTrackInteractions() {
                     updateBottomStatusBar();
                     
                     // Dynamic import to avoid circular dependencies and trigger re-render of clips/contents
-                    import('./track-manager.js').then(m => m.renderTracks());
+                    import('../track-manager.js').then(m => m.renderTracks());
                 }
             }
         }
@@ -534,5 +353,3 @@ function setupTrackInteractions() {
 
     updateBottomStatusBar();
 }
-
-export { drawPlayhead, setupTrackInteractions };

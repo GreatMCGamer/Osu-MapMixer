@@ -5,7 +5,7 @@
 
 import { showToast } from '../engine/utils.js';
 import { parseOsuToSourceAsset } from './ingestion-worker.js';
-import { addNormalTrack } from '../engine/track-manager.js';
+import { addNormalTrack } from '../engine/tracks-container/track-manager.js';
 import { sharedState } from '../core/shared-state.js';
 
 /**

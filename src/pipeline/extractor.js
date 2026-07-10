@@ -3,7 +3,7 @@
  * Processes compressed zip (.osz) binaries, decodes map payload text streams, and coordinates CORS-safe proxy acquisitions
  */
 import { showToast, showLoader, hideLoader } from '../engine/utils.js';
-import { addNormalTrack, renderTracks } from '../engine/track-manager.js';
+import { addNormalTrack, renderTracks } from '../engine/tracks-container/track-manager.js';
 import { processSingleOsuFile } from './ingestion-handler.js';
 import { sharedState } from '../core/shared-state.js';
 

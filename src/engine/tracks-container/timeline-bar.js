@@ -1,5 +1,5 @@
 import { sharedState } from '../../core/shared-state.js';
-import { getBestTimeInterval, formatTimestamp, getTimingAndBeatLines } from '../track-utils.js';
+import { getBestTimeInterval, formatTimestamp, getTimingAndBeatLines } from '../track-utils/index.js';
 
 export function createTimelineBar() {
     const timelineBar = document.createElement('div');

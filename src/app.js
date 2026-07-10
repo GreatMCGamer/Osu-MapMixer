@@ -2,12 +2,12 @@
  * Main Orchestrator: Entry Point
  * Ensures DOM readiness before attaching event listeners to imported modules.
  */
-import { renderTracks } from './engine/track-manager.js';
+import { renderTracks } from './engine/tracks-container/track-manager.js';
 import { setupDividerResizing } from './ui/divider.js';
 import { animationLoop, setupPlaybackControls } from './core/state.js';
 import { setupMenuListeners, setupWelcomeModalListeners } from './ui/ui-shell.js';
 import { updateCanvasSize, drawCanvas } from './ui/canvas.js';
-import { setupTrackInteractions } from './engine/timeline.js';
+import { setupTrackInteractions } from './engine/tracks-container/timeline.js';
 import { setupDragAndDrop } from './pipeline/file-ingestor.js';
 import { setupClipboardPasteListener, setupURLInputListeners } from './pipeline/extractor.js';
 import { sharedState } from './core/shared-state.js';

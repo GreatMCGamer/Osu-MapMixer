@@ -1,5 +1,5 @@
 import { sharedState, getHighlightedTrackId } from '../core/shared-state.js';
-import { getNoteTimes, projectObjectToMaster, convertBeatToMs } from './track-utils.js';
+import { getNoteTimes, projectObjectToMaster, convertBeatToMs } from './track-utils/index.js';
 
 /**
  * Checks if a track contains a pattern clip active at a specific timestamp.

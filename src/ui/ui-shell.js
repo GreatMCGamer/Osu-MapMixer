@@ -7,7 +7,7 @@ import { handleOszFile } from '../pipeline/extractor.js';
 import { showLoader, hideLoader, showToast } from '../engine/utils.js';
 import { sharedState } from '../core/shared-state.js';
 import { exportProjectOsu } from '../export/exporter.js';
-import { renderTracks } from '../engine/track-manager.js';
+import { renderTracks } from '../engine/tracks-container/track-manager.js';
 
 /**
  * Binds actions to navigation links inside the top header

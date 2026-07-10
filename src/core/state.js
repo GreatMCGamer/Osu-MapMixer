@@ -3,7 +3,7 @@
  * Manages the timeline playback clock, ticks, state mutations, and animation loops
  */
 import { drawCanvas } from '../ui/canvas.js';
-import { drawPlayhead } from '../engine/timeline.js';
+import { drawPlayhead } from '../engine/tracks-container/timeline.js';
 import { sharedState } from './shared-state.js';
 
 let audioEl = null;

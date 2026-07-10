@@ -1,8 +1,8 @@
-import { sharedState, getHighlightedTrackId } from '../../core/shared-state.js';
+import { sharedState, getHighlightedTrackId } from '../../../core/shared-state.js';
 import { renderTimingGridLines } from '../track-ui.js';
-import { getNoteTimes } from '../track-utils.js';
+import { getNoteTimes } from '../../track-utils/index.js';
 import { renderTracks } from '../track-manager.js';
-import { getCachedClip, setCachedClip } from '../clip-cache.js';
+import { getCachedClip, setCachedClip } from '../../clip-cache.js';
 
 export function createNormalTrack(track, fallbackTimingAsset, totalDurationMs) {
     const highlightedId = getHighlightedTrackId();
@@ -12,7 +12,7 @@ export function createNormalTrack(track, fallbackTimingAsset, totalDurationMs) {
     trackEl.className = `track ${track.type}${isHighlighted ? ' highlighted' : ''}`;
     trackEl.id = track.id;
 
-    // Track selection helper that updates DOM classes instantly without re-rendering everything (preventing DOM nodes from being destroyed during double-clicks)
+    // Track selection helper that updates DOM classes instantly without re-rendering everything
     const selectTrack = () => {
         if (sharedState.highlightedTrackId !== track.id) {
             sharedState.highlightedTrackId = track.id;
@@ -34,7 +34,7 @@ export function createNormalTrack(track, fallbackTimingAsset, totalDurationMs) {
                     }
                 }
             });
-            import('../../ui/canvas.js').then(m => m.drawCanvas());
+            import('../../../ui/canvas.js').then(m => m.drawCanvas());
         }
     };
 
@@ -157,8 +157,6 @@ export function createNormalTrack(track, fallbackTimingAsset, totalDurationMs) {
                 maxTimeMs = times.endTime;
             }
         });
-
-        const trackRangeMs = maxTimeMs - minTimeMs || 1000;
 
         // Initialize track.clips if not exists
         if (!track.clips) {

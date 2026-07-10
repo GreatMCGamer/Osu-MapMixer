@@ -1,6 +1,6 @@
 import { sharedState } from '../../core/shared-state.js';
-import { getMp3DisplayName, sliceActiveTrack, pushSelectionToMaster } from '../track-utils.js';
-import { renderTracks, addMasterTrack } from '../track-manager.js';
+import { getMp3DisplayName, sliceActiveTrack, pushSelectionToMaster } from '../track-utils/index.js';
+import { renderTracks, addMasterTrack } from './track-manager.js';
 
 export function createUtilityBar() {
     const utilityBar = document.createElement('div');

@@ -1,6 +1,6 @@
-import { sharedState, getHighlightedTrackId } from '../core/shared-state.js';
-import { getTimingAndBeatLines } from './track-utils.js';
-import { drawCanvas } from '../ui/canvas.js';
+import { sharedState, getHighlightedTrackId } from '../../core/shared-state.js';
+import { getTimingAndBeatLines } from '../track-utils/index.js';
+import { drawCanvas } from '../../ui/canvas.js';
 import { renderTracks } from './track-manager.js';
 
 export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, options = {}) {

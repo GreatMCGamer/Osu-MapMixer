@@ -1,12 +1,12 @@
-import { sharedState } from '../core/shared-state.js';
+import { sharedState } from '../../core/shared-state.js';
 import { drawPlayhead } from './timeline.js';
-import { drawCanvas } from '../ui/canvas.js';
-import { createUtilityBar } from './components/utility-bar.js';
-import { createTimelineBar } from './components/timeline-bar.js';
-import { createMasterTrack } from './components/master-track.js';
-import { createNormalTrack } from './components/normal-track.js';
+import { drawCanvas } from '../../ui/canvas.js';
+import { createUtilityBar } from './utility-bar.js';
+import { createTimelineBar } from './timeline-bar.js';
+import { createMasterTrack } from './master-track/master-track.js';
+import { createNormalTrack } from './normal-track/normal-track.js';
 
-export { getNoteTimes, getMp3DisplayName, getMaxBeats } from './track-utils.js';
+export { getNoteTimes, getMp3DisplayName, getMaxBeats } from '../track-utils/index.js';
 
 /**
  * Main rendering entry point for the Tracks interface.
