@@ -78,6 +78,54 @@
                     </div>
                 </div>
             </div>
+            <div class="menu-item dropdown" id="debugDropdown">
+                <span class="dropdown-trigger" id="debugDropdownTrigger">Debug ▼</span>
+                <div class="dropdown-content" style="padding: 12px; min-width: 240px; font-family: monospace; font-size: 11px; line-height: 1.6; color: #ccc;">
+                    <h4 style="margin: 0 0 8px 0; color: #ff66aa; border-bottom: 1px solid #333; padding-bottom: 4px; font-size: 12px; font-weight: bold;">Performance Timings</h4>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; border-bottom: 1px dotted #333; padding-bottom: 2px;">
+                        <span>Canvas Render:</span>
+                        <span id="debugCanvasRender" style="color: white; font-weight: bold;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>├ Grid Render:</span>
+                        <span id="debugGridRender" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>├ Hit Object Filter:</span>
+                        <span id="debugHitObjectFilter" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>├ Slider Procedurals:</span>
+                        <span id="debugSliderRender" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; padding-left: 8px; opacity: 0.8;">
+                        <span>└ Circle/Spinner Draw:</span>
+                        <span id="debugCircleRender" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; border-bottom: 1px dotted #333; padding-bottom: 2px;">
+                        <span>Playhead Update:</span>
+                        <span id="debugPlayheadUpdate" style="color: white; font-weight: bold;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>├ Lane DOM Query:</span>
+                        <span id="debugLaneQuery" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>├ Playhead Query:</span>
+                        <span id="debugPlayheadQuery" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px; padding-left: 8px; opacity: 0.8;">
+                        <span>└ DOM Scroll Sync:</span>
+                        <span id="debugLaneScrollSync" style="color: #bbb;">0.00 ms</span>
+                    </div>
+                    <hr class="dropdown-divider" style="margin: 8px 0;">
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; color: white;">
+                        <span>Estimated FPS:</span>
+                        <span id="debugFps" style="color: #ff66aa;">0 FPS</span>
+                    </div>
+                </div>
+            </div>
             <div class="menu-item" id="exportBtnMenu">Export</div>
         </div>
     </div>
@@ -99,6 +147,10 @@
     <div class="bottom-status-bar" id="bottom-status-bar">
         <div class="info-bubble" id="playhead-bubble">Time: 00:00.000 / 03:00.000</div>
         <div class="info-bubble" id="zoom-bubble">Visible: 180.0s</div>
+        <label id="timingToggleLabel" style="margin-left: auto; display: flex; align-items: center; gap: 6px; color: #888; font-size: 11px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="toggle-timing-lines" checked style="accent-color: #ff66aa; cursor: pointer; margin: 0; width: 13px; height: 13px;">
+            Show Timing Lines
+        </label>
     </div>
 
     <!-- Fixed script tag with type="module" to enable ES modules processing -->

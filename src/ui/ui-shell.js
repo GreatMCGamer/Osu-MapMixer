@@ -7,6 +7,7 @@ import { handleOszFile } from '../pipeline/extractor.js';
 import { showLoader, hideLoader, showToast } from '../engine/utils.js';
 import { sharedState } from '../core/shared-state.js';
 import { exportProjectOsu } from '../export/exporter.js';
+import { renderTracks } from '../engine/track-manager.js';
 
 /**
  * Binds actions to navigation links inside the top header
@@ -82,6 +83,8 @@ function setupMenuListeners() {
             const isTrigger = e.target.closest('#importDropdownTrigger') || e.target === importDropdown;
             if (isTrigger) {
                 importDropdown.classList.toggle('active');
+                const debugDropdown = document.getElementById('debugDropdown');
+                if (debugDropdown) debugDropdown.classList.remove('active');
                 e.stopPropagation();
             }
         });
@@ -96,11 +99,49 @@ function setupMenuListeners() {
                 }
             });
         }
-
-        document.addEventListener('click', () => {
-            importDropdown.classList.remove('active');
-        });
     }
+
+    const debugDropdown = document.getElementById('debugDropdown');
+    const updateDebugDropdownVisibility = () => {
+        if (debugDropdown) {
+            debugDropdown.style.display = sharedState.showDebugDropdown ? 'inline-block' : 'none';
+        }
+    };
+    updateDebugDropdownVisibility();
+
+    if (debugDropdown) {
+        debugDropdown.addEventListener('click', (e) => {
+            const isTrigger = e.target.closest('#debugDropdownTrigger') || e.target === debugDropdown;
+            if (isTrigger) {
+                debugDropdown.classList.toggle('active');
+                if (importDropdown) importDropdown.classList.remove('active');
+                e.stopPropagation();
+            }
+        });
+        
+        const dropdownContent = debugDropdown.querySelector('.dropdown-content');
+        if (dropdownContent) {
+            dropdownContent.addEventListener('click', (e) => {
+                e.stopPropagation(); // Don't close debug dropdown when clicking inside it
+            });
+        }
+    }
+
+    // Register global hotkey (Ctrl+Alt+D) to toggle debug dropdown visibility
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.altKey && e.code === 'KeyD') {
+            e.preventDefault();
+            sharedState.showDebugDropdown = !sharedState.showDebugDropdown;
+            localStorage.setItem('debug', sharedState.showDebugDropdown ? 'true' : 'false');
+            updateDebugDropdownVisibility();
+            showToast(sharedState.showDebugDropdown ? 'Debug menu enabled' : 'Debug menu disabled');
+        }
+    });
+
+    document.addEventListener('click', () => {
+        if (importDropdown) importDropdown.classList.remove('active');
+        if (debugDropdown) debugDropdown.classList.remove('active');
+    });
 
     if (fileInput) {
         fileInput.addEventListener('change', async (e) => {
@@ -109,6 +150,14 @@ function setupMenuListeners() {
                 if (welcomeModal) welcomeModal.style.display = 'none';
                 await handleOszFile(e.target.files[0]);
             }
+        });
+    }
+
+    const toggleTimingLines = document.getElementById('toggle-timing-lines');
+    if (toggleTimingLines) {
+        toggleTimingLines.addEventListener('change', (e) => {
+            sharedState.showTimingLines = e.target.checked;
+            renderTracks();
         });
     }
 }

@@ -17,6 +17,8 @@ export { getNoteTimes, getMp3DisplayName, getMaxBeats } from './track-utils.js';
  * 4. Normal Tracks Container (with hit object clips, circle/slider/spinner details)
  */
 export function renderTracks() {
+    const t0 = performance.now();
+    sharedState.cachedLaneWidth = null; // Clear cached lane width to force a fresh measurement
     const container = document.getElementById('tracks-container');
     if (!container) return;
     container.innerHTML = '';

@@ -24,7 +24,25 @@ const sharedState = {
     beatDivider: 4, // Beat snap divisor (1/1, 1/2, 1/3, 1/4, etc.)
     volume: 0.5, // Audio playback volume (0 to 1, 50% default)
     previewNeedsCompile: true,
-    ghostPreviewTrack: null
+    ghostPreviewTrack: null,
+    showTimingLines: true,
+    showDebugDropdown: (typeof window !== 'undefined' && (
+        window.location.search.includes('debug=1') ||
+        window.location.search.includes('debug=true') ||
+        localStorage.getItem('debug') === 'true'
+    )),
+    performanceTimings: {
+        canvasRenderMs: 0,
+        gridRenderMs: 0,
+        hitObjectFilterMs: 0,
+        sliderRenderMs: 0,
+        circleRenderMs: 0,
+        playheadUpdateMs: 0,
+        laneQueryMs: 0,
+        playheadQueryMs: 0,
+        laneScrollSyncMs: 0,
+        fps: 0
+    }
 };
 
 /**

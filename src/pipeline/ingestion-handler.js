@@ -17,8 +17,10 @@ import { sharedState } from '../core/shared-state.js';
 function processOsuContent(osuContent, fileName) {
     try {
         console.log(`%c[Processing]: ${fileName}`, "color: #00bcd4;");
+        const t0 = performance.now();
         const sourceAsset = parseOsuToSourceAsset(osuContent, fileName);
-        console.log(`%c[Success]: Parsed ${fileName}`, "color: #28a745; font-weight: bold;");
+        const duration = performance.now() - t0;
+        console.log(`%c[Success]: Parsed ${fileName} in ${duration.toFixed(2)}ms`, "color: #28a745; font-weight: bold;");
         return sourceAsset;
     } catch (error) {
         console.error(`%c[Error]: Failed to parse ${fileName}`, "color: #dc3545; font-weight: bold;", error);

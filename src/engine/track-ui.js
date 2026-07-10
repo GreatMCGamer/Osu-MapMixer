@@ -6,7 +6,9 @@ import { renderTracks } from './track-manager.js';
 export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, options = {}) {
     if (!timingAsset) return;
 
-    const { showRedLines = true, showGreenLines = true, showBeatLines = true } = options;
+    const showRed = options.showRedLines !== false && sharedState.showTimingLines;
+    const showGreen = options.showGreenLines !== false && sharedState.showTimingLines;
+    const { showBeatLines = true } = options;
     const { redLines, greenLines, beatLines } = getTimingAndBeatLines(timingAsset, totalDurationMs);
 
     // 1. Draw beat lines (subtle white/grey lines)
@@ -34,7 +36,7 @@ export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, o
     }
 
     // 2. Draw red lines (uninherited timing points)
-    if (showRedLines) {
+    if (showRed) {
         let linesToRender = redLines;
         if (redLines.length > 2000) {
             const step = Math.ceil(redLines.length / 2000);
@@ -64,7 +66,7 @@ export function renderTimingGridLines(contentEl, timingAsset, totalDurationMs, o
     }
 
     // 3. Draw green lines (volume changes)
-    if (showGreenLines) {
+    if (showGreen) {
         let linesToRender = greenLines;
         if (greenLines.length > 2000) {
             const step = Math.ceil(greenLines.length / 2000);
@@ -242,7 +244,7 @@ export function toggleDifficultyDropdown(track, triggerEl) {
         let val = inputEl.value;
 
         // Remove any characters that aren't digits, dot, or minus sign
-        val = val.replace(/[^\\d.-]/g, '');
+        val = val.replace(/[^\d.-]/g, '');
 
         // Ensure there is at most one decimal point
         let parts = val.split('.');

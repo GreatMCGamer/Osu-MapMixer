@@ -10,6 +10,7 @@ import { updateCanvasSize, drawCanvas } from './ui/canvas.js';
 import { setupTrackInteractions } from './engine/timeline.js';
 import { setupDragAndDrop } from './pipeline/file-ingestor.js';
 import { setupClipboardPasteListener, setupURLInputListeners } from './pipeline/extractor.js';
+import { sharedState } from './core/shared-state.js';
 
 async function initializeApp() {
     console.log("Initializing App...");
@@ -52,6 +53,7 @@ async function initializeApp() {
 
     // 7. Handle Responsive Resizing
     window.addEventListener('resize', () => {
+        sharedState.cachedLaneWidth = null;
         updateCanvasSize();
         drawCanvas();
     });

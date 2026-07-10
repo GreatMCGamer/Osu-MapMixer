@@ -91,14 +91,23 @@ function updateCanvasSize() {
  * Erases and repaints grid segments and reference anchors on the screen context
  */
 function drawCanvas() {
+    const t0 = performance.now();
     const canvas = document.getElementById('beatmapCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const t0_grid = performance.now();
     drawGrid(ctx, canvas.width, canvas.height);
+    if (sharedState.performanceTimings) {
+        sharedState.performanceTimings.gridRenderMs = performance.now() - t0_grid;
+    }
     
     drawHitObjects(ctx, canvas);
+    if (sharedState.performanceTimings) {
+        sharedState.performanceTimings.canvasRenderMs = performance.now() - t0;
+    }
 }
 
 /**
@@ -161,10 +170,14 @@ function getSliderBallPosition(note, currentTimeMs, startTime, endTime) {
 function drawHitObjects(ctx, canvas) {
     if (!sharedState.tracks || sharedState.tracks.length === 0) return;
 
+    let sliderRenderTotal = 0;
+    let circleRenderTotal = 0;
+
     const totalDuration = sharedState.selectedMp3 ? sharedState.selectedMp3.duration * 1000 : 180000;
     const currentTimeMs = sharedState.playheadPosition * totalDuration;
 
-    const scale = Math.min(canvas.width / 512, canvas.height / 384);
+    const PAD = 54.4; // Radius of Circle Size 0 to ensure everything is always fully visible
+    const scale = Math.min(canvas.width / (512 + 2 * PAD), canvas.height / (384 + 2 * PAD));
     const offsetX = (canvas.width - 512 * scale) / 2;
     const offsetY = (canvas.height - 384 * scale) / 2;
 
@@ -192,6 +205,7 @@ function drawHitObjects(ctx, canvas) {
     }
 
     // Retrieve active objects from the ghost preview track, filtering by AR_TIME
+    const t0_filter = performance.now();
     const activeObjects = [];
     if (sharedState.ghostPreviewTrack && sharedState.ghostPreviewTrack.sourceAsset && sharedState.ghostPreviewTrack.sourceAsset.hitObjects) {
         sharedState.ghostPreviewTrack.sourceAsset.hitObjects.forEach(obj => {
@@ -208,6 +222,17 @@ function drawHitObjects(ctx, canvas) {
 
     // Sort descending by startTime so earlier objects are drawn ON TOP of later ones
     activeObjects.sort((a, b) => b.startTime - a.startTime);
+    if (sharedState.performanceTimings) {
+        sharedState.performanceTimings.hitObjectFilterMs = performance.now() - t0_filter;
+    }
+
+    // Draw the 512x384 playfield dashed boundary
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(tx(0), ty(0), 512 * scale, 384 * scale);
+    ctx.restore();
 
     activeObjects.forEach(obj => {
         const { note, startTime, endTime } = obj;
@@ -231,48 +256,40 @@ function drawHitObjects(ctx, canvas) {
 
         ctx.globalAlpha = alpha;
 
-        // Draw glowing halo for highlighted objects
-        if (isHighlighted && (note.type === 'circle' || note.type === 'slider')) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(tx(note.x), ty(note.y), CIRCLE_RADIUS * 1.35, 0, Math.PI * 2);
-            ctx.strokeStyle = '#ff66aa';
-            ctx.lineWidth = 4 * scale;
-            ctx.shadowColor = '#ff66aa';
-            ctx.shadowBlur = 15;
-            ctx.stroke();
-            ctx.restore();
-        }
-
         if (note.type === 'slider' && note.sliderData && note.sliderData.bakedPath) {
-            drawSmoothSlider(ctx, note, tx, ty, CIRCLE_RADIUS * 2, rgb, isHighlighted);
+            const t0_slider = performance.now();
+            drawSmoothSlider(ctx, note, tx, ty, CIRCLE_RADIUS * 2, rgb, isHighlighted, scale);
+            sliderRenderTotal += performance.now() - t0_slider;
         } else if (note.type === 'spinner') {
+            const t0_spinner = performance.now();
             ctx.beginPath();
             ctx.arc(tx(256), ty(192), CIRCLE_RADIUS * 3, 0, Math.PI * 2);
-            ctx.strokeStyle = isHighlighted ? 'rgba(255, 102, 170, 0.8)' : `rgba(${rgb}, 0.5)`;
+            ctx.strokeStyle = isHighlighted ? 'rgba(255, 102, 170, 0.8)' : `rgba(${rgb}, 0.3)`;
             ctx.lineWidth = isHighlighted ? 6 : 4;
             ctx.stroke();
+            circleRenderTotal += performance.now() - t0_spinner;
         }
 
         // Draw hit circle / slider head
         if (note.type === 'circle' || note.type === 'slider') {
+            const t0_circle = performance.now();
             // Draw approach circle
             if (currentTimeMs < startTime) {
                 const approachScale = 1 + 2 * (1 - (currentTimeMs - (startTime - AR_TIME)) / AR_TIME);
                 ctx.beginPath();
                 ctx.arc(tx(note.x), ty(note.y), CIRCLE_RADIUS * approachScale, 0, Math.PI * 2);
-                ctx.strokeStyle = isHighlighted ? '#ff66aa' : `rgb(${rgb})`;
-                ctx.lineWidth = isHighlighted ? 3 : 2;
+                ctx.strokeStyle = `rgb(${rgb})`;
+                ctx.lineWidth = 2;
                 ctx.stroke();
             }
 
             // Draw circle body
             ctx.beginPath();
             ctx.arc(tx(note.x), ty(note.y), CIRCLE_RADIUS, 0, Math.PI * 2);
-            ctx.fillStyle = `rgb(${rgb})`;
+            ctx.fillStyle = `rgba(${rgb}, 0.3)`;
             ctx.fill();
 
-            ctx.lineWidth = 3;
+            ctx.lineWidth = isHighlighted ? 5 : 3;
             ctx.strokeStyle = isHighlighted ? '#ff66aa' : 'white';
             ctx.stroke();
 
@@ -283,14 +300,18 @@ function drawHitObjects(ctx, canvas) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(comboNum, tx(note.x), ty(note.y));
+            circleRenderTotal += performance.now() - t0_circle;
         }
 
         // Draw moving slider ball and follow circle if active
         if (note.type === 'slider' && currentTimeMs >= startTime && currentTimeMs <= endTime) {
+            const t0_ball = performance.now();
             const ballPos = getSliderBallPosition(note, currentTimeMs, startTime, endTime);
+            sliderRenderTotal += performance.now() - t0_ball;
             const bx = tx(ballPos.x);
             const by = ty(ballPos.y);
 
+            const t0_ball_draw = performance.now();
             // 1. Draw slider follow circle (glowing outer ring)
             ctx.save();
             ctx.beginPath();
@@ -312,7 +333,7 @@ function drawHitObjects(ctx, canvas) {
             // 2. Draw slider ball body
             ctx.beginPath();
             ctx.arc(bx, by, CIRCLE_RADIUS * 0.95, 0, Math.PI * 2);
-            ctx.fillStyle = `rgb(${rgb})`;
+            ctx.fillStyle = `rgba(${rgb}, 0.3)`;
             ctx.fill();
 
             // Draw inner white core of the slider ball
@@ -324,11 +345,17 @@ function drawHitObjects(ctx, canvas) {
             // Outer ring of the slider ball itself
             ctx.beginPath();
             ctx.arc(bx, by, CIRCLE_RADIUS * 0.95, 0, Math.PI * 2);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3 * scale;
+            ctx.strokeStyle = isHighlighted ? '#ff66aa' : '#ffffff';
+            ctx.lineWidth = isHighlighted ? 5 : 3 * scale;
             ctx.stroke();
+            circleRenderTotal += performance.now() - t0_ball_draw;
         }
     });
+
+    if (sharedState.performanceTimings) {
+        sharedState.performanceTimings.sliderRenderMs = sliderRenderTotal;
+        sharedState.performanceTimings.circleRenderMs = circleRenderTotal;
+    }
 
     ctx.globalAlpha = 1;
 }
@@ -336,111 +363,147 @@ function drawHitObjects(ctx, canvas) {
 /**
  * Procedurally generates smooth slider bodies using mathematical layered gradients
  */
-function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb, isHighlighted) {
-    if (!window.sliderScratch) {
-        window.sliderScratch = document.createElement('canvas');
-        window.sliderCtx = window.sliderScratch.getContext('2d');
-    }
-    const sCanvas = window.sliderScratch;
-    const sCtx = window.sliderCtx;
-    if (sCanvas.width !== ctx.canvas.width || sCanvas.height !== ctx.canvas.height) {
-        sCanvas.width = ctx.canvas.width;
-        sCanvas.height = ctx.canvas.height;
-    }
-    sCtx.clearRect(0, 0, sCanvas.width, sCanvas.height);
-    sCtx.lineCap = 'round';
-    sCtx.lineJoin = 'round';
+function drawSmoothSlider(ctx, note, tx, ty, trackDiam, baseRgb, isHighlighted, scale) {
+    if (!note.sliderData || !note.sliderData.bakedPath || note.sliderData.bakedPath.length === 0) return;
 
-    const path = new Path2D();
-    const baked = note.sliderData.bakedPath;
-    if (baked.length > 0) {
-        path.moveTo(tx(baked[0].x), ty(baked[0].y));
+    if (!note.sliderData.cachedCanvas || 
+        note.sliderData.cachedWidth !== ctx.canvas.width ||
+        note.sliderData.cachedHeight !== ctx.canvas.height ||
+        note.sliderData.cachedIsHighlighted !== isHighlighted) {
+        
+        const baked = note.sliderData.bakedPath;
+        let minX = baked[0].x, maxX = baked[0].x;
+        let minY = baked[0].y, maxY = baked[0].y;
         for (let i = 1; i < baked.length; i++) {
-            path.lineTo(tx(baked[i].x), ty(baked[i].y));
+            if (baked[i].x < minX) minX = baked[i].x;
+            if (baked[i].x > maxX) maxX = baked[i].x;
+            if (baked[i].y < minY) minY = baked[i].y;
+            if (baked[i].y > maxY) maxY = baked[i].y;
         }
-    }
 
-    const bodyWidth = trackDiam * 0.82;
-    const borderRgb = isHighlighted ? '255, 102, 170' : '255,255,255';
-    
-    // 1. Outer border
-    sCtx.lineWidth = isHighlighted ? trackDiam * 1.2 : trackDiam;
-    sCtx.strokeStyle = `rgb(${borderRgb})`;
-    sCtx.stroke(path);
+        const padding = (trackDiam / scale) / 2 + (15 / scale);
+        minX -= padding;
+        maxX += padding;
+        minY -= padding;
+        maxY += padding;
 
-    // 2. Solid base track body
-    sCtx.lineWidth = bodyWidth;
-    sCtx.strokeStyle = `rgb(${baseRgb})`;
-    sCtx.stroke(path);
+        const w = (maxX - minX) * scale;
+        const h = (maxY - minY) * scale;
 
-    // Highlight (brighten)
-    const parts = baseRgb.split(',').map(Number);
-    const highlight = `${Math.min(255, parts[0]+90)},${Math.min(255, parts[1]+90)},${Math.min(255, parts[2]+90)}`;
+        const sCanvas = document.createElement('canvas');
+        sCanvas.width = Math.ceil(w);
+        sCanvas.height = Math.ceil(h);
+        const sCtx = sCanvas.getContext('2d');
+        sCtx.lineCap = 'round';
+        sCtx.lineJoin = 'round';
 
-    // Soft radial gradient layers (smooth center glow)
-    const layers = [
-        { widthFactor: 1.0, alpha: 0.05, brightness: 0.10 }, // Gentle start
-        { widthFactor: 0.9, alpha: 0.50, brightness: 0.18 }, // Small, natural jump
-        { widthFactor: 0.8, alpha: 0.50, brightness: 0.32 },
-        { widthFactor: 0.7, alpha: 0.50, brightness: 0.48 }, // Building momentum
-        { widthFactor: 0.6, alpha: 0.50, brightness: 0.62 },
-        { widthFactor: 0.5, alpha: 0.50, brightness: 0.75 }, // Crossing the midpoint
-        { widthFactor: 0.4, alpha: 0.50, brightness: 0.85 },
-        { widthFactor: 0.3, alpha: 0.50, brightness: 0.92 },
-        { widthFactor: 0.2, alpha: 0.50, brightness: 0.97 }, // Still climbing...
-        { widthFactor: 0.1, alpha: 0.50, brightness: 1.00 }  // Reaches peak at the very end
-    ];
+        const localTx = (x) => (x - minX) * scale;
+        const localTy = (y) => (y - minY) * scale;
 
-    for (const layer of layers) {
-        const w = bodyWidth * layer.widthFactor;
-        const base = parts;
-        const high = highlight.split(',').map(Number);
-        const r = Math.round(base[0] * (1 - layer.brightness) + high[0] * layer.brightness);
-        const g = Math.round(base[1] * (1 - layer.brightness) + high[1] * layer.brightness);
-        const b = Math.round(base[2] * (1 - layer.brightness) + high[2] * layer.brightness);
+        const path = new Path2D();
+        path.moveTo(localTx(baked[0].x), localTy(baked[0].y));
+        for (let i = 1; i < baked.length; i++) {
+            path.lineTo(localTx(baked[i].x), localTy(baked[i].y));
+        }
 
-        sCtx.globalAlpha = layer.alpha;
-        sCtx.lineWidth = w;
-        sCtx.strokeStyle = `rgb(${r},${g},${b})`;
+        const bodyWidth = trackDiam * 0.82;
+        const borderRgb = isHighlighted ? '255, 102, 170' : '255,255,255';
+        
+        // 1. Outer border
+        sCtx.lineWidth = isHighlighted ? trackDiam + 10 : trackDiam;
+        sCtx.strokeStyle = `rgb(${borderRgb})`;
         sCtx.stroke(path);
-    }
-    sCtx.globalAlpha = 1.0;
 
-    // Render scratch buffer back to main canvas
-    ctx.drawImage(sCanvas, 0, 0);
+        // 2. Hollow out
+        sCtx.globalCompositeOperation = 'destination-out';
+        sCtx.lineWidth = bodyWidth;
+        sCtx.strokeStyle = 'rgba(0, 0, 0, 1)';
+        sCtx.stroke(path);
+        sCtx.globalCompositeOperation = 'source-over';
+
+        // Highlight (brighten)
+        const parts = baseRgb.split(',').map(Number);
+        const highlight = `${Math.min(255, parts[0]+90)},${Math.min(255, parts[1]+90)},${Math.min(255, parts[2]+90)}`;
+
+        const layers = [
+            { widthFactor: 1.0, alpha: 0.05, brightness: 0.10 },
+            { widthFactor: 0.9, alpha: 0.50, brightness: 0.18 },
+            { widthFactor: 0.8, alpha: 0.50, brightness: 0.32 },
+            { widthFactor: 0.7, alpha: 0.50, brightness: 0.48 },
+            { widthFactor: 0.6, alpha: 0.50, brightness: 0.62 },
+            { widthFactor: 0.5, alpha: 0.50, brightness: 0.75 },
+            { widthFactor: 0.4, alpha: 0.50, brightness: 0.85 },
+            { widthFactor: 0.3, alpha: 0.50, brightness: 0.92 },
+            { widthFactor: 0.2, alpha: 0.50, brightness: 0.97 },
+            { widthFactor: 0.1, alpha: 0.50, brightness: 1.00 }
+        ];
+
+        for (const layer of layers) {
+            const lw = bodyWidth * layer.widthFactor;
+            const base = parts;
+            const high = highlight.split(',').map(Number);
+            const r = Math.round(base[0] * (1 - layer.brightness) + high[0] * layer.brightness);
+            const g = Math.round(base[1] * (1 - layer.brightness) + high[1] * layer.brightness);
+            const b = Math.round(base[2] * (1 - layer.brightness) + high[2] * layer.brightness);
+
+            sCtx.globalAlpha = layer.alpha * 0.3;
+            sCtx.lineWidth = lw;
+            sCtx.strokeStyle = `rgb(${r},${g},${b})`;
+            sCtx.stroke(path);
+        }
+        sCtx.globalAlpha = 1.0;
+
+        note.sliderData.cachedCanvas = sCanvas;
+        note.sliderData.cachedWidth = ctx.canvas.width;
+        note.sliderData.cachedHeight = ctx.canvas.height;
+        note.sliderData.cachedIsHighlighted = isHighlighted;
+        note.sliderData.cachedMinX = minX;
+        note.sliderData.cachedMinY = minY;
+    }
+
+    ctx.drawImage(note.sliderData.cachedCanvas, tx(note.sliderData.cachedMinX), ty(note.sliderData.cachedMinY));
 }
 
 /**
- * A utility drawing function that loops grid spacing structures across the canvas element
+ * A utility drawing function that loops grid spacing structures strictly inside the playfield area
  * @param {CanvasRenderingContext2D} ctx 
  * @param {number} width 
  * @param {number} height 
  */
 function drawGrid(ctx, width, height) {
-    // Grid spacing (step) is determined solely by the vertical distance (height)
-    // We divide the vertical height into 12 segments (384 / 12 = 32 osu!px per grid cell).
-    const step = height / 12;
+    const canvas = ctx.canvas;
+    if (!canvas) return;
+    const PAD = 54.4;
+    const scale = Math.min(canvas.width / (512 + 2 * PAD), canvas.height / (384 + 2 * PAD));
+    const offsetX = (canvas.width - 512 * scale) / 2;
+    const offsetY = (canvas.height - 384 * scale) / 2;
+
+    const playfieldWidth = 512 * scale;
+    const playfieldHeight = 384 * scale;
+
+    const step = playfieldHeight / 12; // exactly 32 * scale
     
+    ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
     ctx.lineWidth = 1;
     
-    // Draw vertical columns based on step size
-    const numCols = Math.round(width / step);
+    // Draw vertical columns inside playfield
+    const numCols = 16;
     for (let i = 0; i <= numCols; i++) {
-        const x = i * step;
+        const x = offsetX + i * step;
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        ctx.moveTo(x, offsetY);
+        ctx.lineTo(x, offsetY + playfieldHeight);
         ctx.stroke();
     }
     
-    // Draw horizontal rows based on step size (exactly 12 rows)
+    // Draw horizontal rows inside playfield
     const numRows = 12;
     for (let i = 0; i <= numRows; i++) {
-        const y = i * step;
+        const y = offsetY + i * step;
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.moveTo(offsetX, y);
+        ctx.lineTo(offsetX + playfieldWidth, y);
         ctx.stroke();
     }
 
@@ -450,15 +513,17 @@ function drawGrid(ctx, width, height) {
     
     // Vertical center axis
     ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
+    ctx.moveTo(offsetX + playfieldWidth / 2, offsetY);
+    ctx.lineTo(offsetX + playfieldWidth / 2, offsetY + playfieldHeight);
     ctx.stroke();
 
     // Horizontal center axis
     ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
+    ctx.moveTo(offsetX, offsetY + playfieldHeight / 2);
+    ctx.lineTo(offsetX + playfieldWidth, offsetY + playfieldHeight / 2);
     ctx.stroke();
+
+    ctx.restore();
 }
 
 export { calculatePlayfieldSize, updateCanvasSize, drawCanvas, drawGrid };

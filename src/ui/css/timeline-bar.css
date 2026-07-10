@@ -30,6 +30,7 @@
     bottom: 0;
     left: 0;
     height: 100%;
+    contain: layout paint style;
 }
 
 /* Playhead indicators */

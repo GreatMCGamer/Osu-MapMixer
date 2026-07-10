@@ -73,6 +73,7 @@ export function trackHasClipAt(track, timeMs) {
  * @param {number} AR_TIME - Approach Rate threshold in ms
  */
 export function compilePreviewTrack() {
+    const t0 = performance.now();
     const compiledObjects = [];
 
     // Build timing segments for master track
